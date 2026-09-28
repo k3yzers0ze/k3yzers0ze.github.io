@@ -1,0 +1,12 @@
+# Normalize line endings to LF for all text files (consistent across Windows/WSL/Linux)
+* text=auto eol=lf
+
+# Treat these as binary (no diff / no eol conversion)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.avif binary
+*.ico binary
+*.woff binary
+*.woff2 binary

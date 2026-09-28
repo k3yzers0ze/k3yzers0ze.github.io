@@ -1,0 +1,27 @@
+[
+  {
+    "category": "Active Directory Exploitation",
+    "description": "Full-domain compromise paths: Kerberoasting, AS-REP roasting, DCSync, Pass-the-Ticket, constrained and unconstrained delegation abuse, ACL and trust-relationship attacks.",
+    "tools": ["BloodHound", "Mimikatz", "Rubeus", "secretsdump"]
+  },
+  {
+    "category": "Web Application Security",
+    "description": "Manual-first testing well past the OWASP Top 10: injection, SSRF, deserialization, auth and session flaws, business-logic abuse and chained exploitation.",
+    "tools": ["Burp Suite", "SQLMap", "Nikto", "Gobuster"]
+  },
+  {
+    "category": "Network Recon & Assessment",
+    "description": "Enumeration and vulnerability assessment across large, segmented enterprise environments — finding the one exposed service that opens the rest.",
+    "tools": ["Nmap", "Nessus", "Enum4linux", "NetExec"]
+  },
+  {
+    "category": "Tooling & Automation",
+    "description": "Custom offensive tooling and automation for recon pipelines, scanning workflows and cryptographic utilities.",
+    "tools": ["Python", "Bash", "PowerShell", "C (basics)"]
+  },
+  {
+    "category": "Lab Infrastructure",
+    "description": "Building multi-domain lab environments for adversary simulation, detection research and technique validation before they ever touch a client.",
+    "tools": ["Kali Linux", "VirtualBox", "VMware", "Wireshark"]
+  }
+]

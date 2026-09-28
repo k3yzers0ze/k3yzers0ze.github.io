@@ -1,0 +1,20 @@
+[
+  {
+    "name": "Hack The Box",
+    "rank": "Pro Hacker Rank",
+    "description": "Advanced exploitation and adversary simulation across hundreds of realistic machines and Pro Labs.",
+    "href": "https://app.hackthebox.com/"
+  },
+  {
+    "name": "TryHackMe",
+    "rank": "Full Learning Path Completed",
+    "description": "Pre-security, junior penetration testing, web fundamentals, network support and Advent of Cyber.",
+    "href": "https://tryhackme.com/"
+  },
+  {
+    "name": "Offsec Labs",
+    "rank": "Active Lab Practitioner",
+    "description": "Ongoing practice on Offensive Security's lab environment, aligned to advanced red team and penetration testing methodology.",
+    "href": "https://www.offsec.com/labs/"
+  }
+]

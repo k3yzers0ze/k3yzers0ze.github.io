@@ -1,0 +1,43 @@
+/* ══════════ DESIGN TOKENS ══════════ */
+:root {
+  --ink: #05050c;
+  --ink2: #080812;
+  --panel: rgba(12, 12, 24, 0.86);
+  --panel-s: #101024;
+  --line: rgba(255, 255, 255, 0.09);
+  --line2: rgba(255, 255, 255, 0.16);
+
+  --sakura: #ff2e88;
+  --cyber: #22d3ee;
+  --gold: #ffcf5c;
+  --jade: #4ade80;
+  --violet: #a78bfa;
+  --amber: #ffb04d;
+
+  /* per-page accents (overridden by body.pg-*) */
+  --scene-key: #ff2e88;
+  --scene-fill: #22d3ee;
+
+  --text: #e9edf8;
+  --muted: #8b93ad;
+  --dim: #5a6180;
+
+  --display: "Anton", Impact, sans-serif;
+  --sans: "Zen Kaku Gothic New", "Noto Sans JP", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --nav: 66px;
+  --max: 1280px;
+  --shadow: 6px 6px 0 rgba(0, 0, 0, 0.5);
+}
+
+/* per-page accent assignments */
+body.pg-home      { --scene-key: #ff2e88; --scene-fill: #22d3ee; }
+body.pg-about     { --scene-key: #ff2e88; --scene-fill: #22d3ee; }
+body.pg-skills    { --scene-key: #22d3ee; --scene-fill: #ff2e88; }
+body.pg-certs     { --scene-key: #ffcf5c; --scene-fill: #22d3ee; }
+body.pg-platforms { --scene-key: #ff2e88; --scene-fill: #ffcf5c; }
+body.pg-projects  { --scene-key: #ffb04d; --scene-fill: #22d3ee; }
+body.pg-writeups  { --scene-key: #4ade80; --scene-fill: #22d3ee; }
+body.pg-writeup   { --scene-key: #4ade80; --scene-fill: #22d3ee; }
+body.pg-contact   { --scene-key: #ff2e88; --scene-fill: #a78bfa; }

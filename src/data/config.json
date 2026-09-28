@@ -1,0 +1,91 @@
+{
+  "name": "Tibtani Ahmed Aymen",
+  "handle": "aymen",
+  "role": "Offensive Security Student",
+  "title": "Tibtani Ahmed Aymen — Offensive Security",
+  "description": "Offensive security student based in Rabat, Morocco. Red teaming, Active Directory exploitation and web application security — with a full write-up for everything I take apart.",
+  "email": "t.aymen404@proton.me",
+  "location": "Rabat, Morocco",
+  "profileImage": "/assets/profile.svg",
+  "socials": [
+    { "label": "GitHub", "href": "https://github.com/" },
+    { "label": "LinkedIn", "href": "https://www.linkedin.com/" },
+    { "label": "Hack The Box", "href": "https://app.hackthebox.com/" }
+  ],
+  "nav": [
+    { "id": "about", "label": "about", "jp": "経歴" },
+    { "id": "skills", "label": "skills", "jp": "技術" },
+    { "id": "certs", "label": "certs", "jp": "資格" },
+    { "id": "platforms", "label": "platforms", "jp": "演習" },
+    { "id": "projects", "label": "projects", "jp": "制作" },
+    { "id": "writeups", "label": "writeups", "jp": "記録" },
+    { "id": "contact", "label": "contact", "jp": "連絡" }
+  ],
+  "about": {
+    "header": "I'm an offensive security Student based in Rabat, Morocco. The job is easy to describe and hard to do: get in the way a real attacker would, prove what it costs, then hand over the exact path so it can be closed for good.",
+    "bio": "Three years across red teaming, Active Directory exploitation and web application security — backed by certifications from Hack The Box, Altered Security and webverse Labs. Engagements are mapped to MITRE ATT&CK, so findings read as attack chains a defender can act on, not a scanner dump. Currently completing an engineering degree in cybersecurity at Ensa Tetouan — and publishing a full write-up for everything I take apart.",
+    "focus": [
+      "Active Directory attack paths in multi-domain forests",
+      "Adversary simulation mapped to MITRE ATT&CK",
+      "Chained web exploitation — auth bypass to RCE",
+      "CRTL, CRTE and BSCP in progress"
+    ],
+    "profile": {
+      "location": "Rabat, Morocco",
+      "email": "t.aymen404@proton.me",
+      "focus": "Active Directory · Red Team · Web",
+      "status": "Available for work"
+    },
+    "timeline": [
+      { "period": "2021 — Present", "title": "Cybersecurity Engineering Student", "org": "Ecole National des Science Appliques Tetouan" },
+      { "period": "2023 — 2026", "title": "Self-Training Offensive Cybersecurity", "org": "Self-Directed" }
+    ]
+  },
+  "certs": [
+    { "name": "TODO: Certification Name", "issuer": "Hack The Box", "date": "TODO: Month YYYY", "badge": "/assets/certs/htb.svg", "verify": "", "status": "earned" },
+    { "name": "TODO: Certification Name", "issuer": "Altered Security", "date": "TODO: Month YYYY", "badge": "/assets/certs/altered.svg", "verify": "", "status": "earned" },
+    { "name": "TODO: Certification Name", "issuer": "webverse Labs", "date": "TODO: Month YYYY", "badge": "/assets/certs/webverse.svg", "verify": "", "status": "earned" },
+    { "name": "CRTL — Certified Red Team Lead", "issuer": "Zero-Point Security", "date": "In progress", "badge": "/assets/certs/crtl.svg", "verify": "", "status": "in-progress" },
+    { "name": "CRTE — Certified Red Team Expert", "issuer": "Altered Security", "date": "In progress", "badge": "/assets/certs/crte.svg", "verify": "", "status": "in-progress" },
+    { "name": "BSCP — Burp Suite Certified Practitioner", "issuer": "PortSwigger", "date": "In progress", "badge": "/assets/certs/bscp.svg", "verify": "", "status": "in-progress" }
+  ],
+  "projects": [
+    {
+      "title": "adpath — AD Attack-Path Enumerator",
+      "description": "Lightweight LDAP enumerator that collects users, groups, ACLs and delegation settings, then flags Kerberoastable accounts and shortest paths to Domain Admins. Exports BloodHound-compatible JSON.",
+      "tags": ["Python", "LDAP", "Impacket", "BloodHound"],
+      "github": "https://github.com/",
+      "demo": ""
+    },
+    {
+      "title": "reconchain — Web Recon Pipeline",
+      "description": "Chained subdomain discovery, HTTP probing, content discovery and screenshotting into a single reproducible pipeline with deduplicated, triage-ready output.",
+      "tags": ["Bash", "Go tooling", "Gobuster", "Docker"],
+      "github": "https://github.com/",
+      "demo": ""
+    },
+    {
+      "title": "jwt-breaker — Burp Auth Fuzzer",
+      "description": "Burp Suite extension that mutates JWTs and session tokens (alg confusion, kid injection, weak secrets) to surface authentication bypasses during manual testing.",
+      "tags": ["Java", "Burp Montoya API", "JWT", "Auth"],
+      "github": "https://github.com/",
+      "demo": ""
+    }
+  ],
+  "contact": {
+    "engagements": [
+      "Web and network penetration testing",
+      "Active Directory / internal assessment",
+      "Red team and adversary simulation",
+      "Security consulting and advisory",
+      "Full-time roles"
+    ]
+  },
+  "firebase": {
+    "apiKey": "TODO_API_KEY",
+    "authDomain": "TODO_PROJECT.firebaseapp.com",
+    "databaseURL": "https://TODO_PROJECT-default-rtdb.firebaseio.com",
+    "projectId": "TODO_PROJECT",
+    "appId": "TODO_APP_ID"
+  }
+}

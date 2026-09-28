@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#05050c" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <title>Tibtani Ahmed Aymen — Offensive Security</title>
+    <meta name="description" content="Offensive security student based in Rabat, Morocco. Red teaming, Active Directory exploitation and web application security — with a full write-up for everything I take apart." />
+    <meta name="author" content="Tibtani Ahmed Aymen" />
+
+    <!-- OpenGraph (static fallback; SPA updates per-route at runtime) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Tibtani Ahmed Aymen — Offensive Security" />
+    <meta property="og:description" content="Red team, Active Directory and web application security. Machine write-ups and research." />
+    <meta property="og:image" content="/assets/og-default.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Anton&family=Zen+Kaku+Gothic+New:wght@300;400;500;700;900&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+
+    <script type="module" src="/src/js/main.js"></script>
+  </head>
+  <body class="pg-home">
+    <!-- Boot loader (removed after first paint / session) -->
+    <div id="boot" role="status" aria-label="Loading">
+      <div class="boot-mark">
+        <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M50 6 L88 28 L88 72 L50 94 L12 72 L12 28 Z" fill="none" stroke="#ff2e88" stroke-width="6" />
+          <path d="M50 32 L68 42 L68 62 L50 72 L32 62 L32 42 Z" fill="#22d3ee" />
+        </svg>
+      </div>
+      <div class="boot-txt">initializing</div>
+      <div class="boot-jp">起動中</div>
+      <div class="boot-bar"><i></i></div>
+    </div>
+
+    <!-- Background texture + scene -->
+    <div class="stage" aria-hidden="true">
+      <div class="stage-glow a"></div>
+      <div class="stage-glow b"></div>
+      <div class="stage-poly spin">
+        <svg viewBox="0 0 200 200" fill="none">
+          <path d="M100 8 L166 46 L166 122 L100 160 L34 122 L34 46 Z" stroke="var(--scene-key)" stroke-width="0.8" stroke-opacity="0.5" />
+          <g class="ring-r"><path d="M100 40 L136 60 L136 100 L100 120 L64 100 L64 60 Z" stroke="var(--scene-fill)" stroke-width="0.8" stroke-opacity="0.55" /></g>
+          <circle cx="100" cy="100" r="88" stroke="var(--scene-key)" stroke-width="0.4" stroke-opacity="0.25" />
+        </svg>
+      </div>
+      <div class="stage-scrim"></div>
+    </div>
+    <div class="scan" aria-hidden="true"></div>
+    <div class="grain" aria-hidden="true"></div>
+
+    <!-- Nav (populated by main.js) -->
+    <nav id="nav" aria-label="Primary"></nav>
+    <div class="mob" data-mob></div>
+
+    <!-- Router mount point -->
+    <main id="app"></main>
+
+    <!-- Footer (populated by main.js) -->
+    <footer id="foot"></footer>
+  </body>
+</html>

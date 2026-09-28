@@ -1,0 +1,20 @@
+<header class="phead">
+  <span class="phead-mark" aria-hidden="true">LOGS</span>
+  <div class="phead-in">
+    <span class="phead-k">// research</span>
+    <h1>Writeups &amp; Research</h1>
+    <p class="jp">記録</p>
+    <p class="eye">Search by title, tag or MITRE ATT&amp;CK technique.</p>
+  </div>
+</header>
+
+<div class="wrap" style="padding-bottom:3rem">
+  <div class="panel wu-search">
+    <span class="prompt">$ grep -i</span>
+    <input id="wu-search" type="search" autocomplete="off" spellcheck="false" placeholder="title, tag, or ATT&CK technique…" aria-label="Search writeups" />
+    <kbd>/</kbd>
+  </div>
+  <p class="wu-count" id="wu-count" aria-live="polite"></p>
+  <div class="wu-list" id="wu-list"></div>
+  <p class="wu-empty" id="wu-empty" hidden>// no writeups match that query</p>
+</div>

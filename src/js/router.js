@@ -177,6 +177,15 @@ const routes = {
     const list = app().querySelector('#wu-list');
     const count = app().querySelector('#wu-count');
     const empty = app().querySelector('#wu-empty');
+    const filters = app().querySelector('#wu-filters');
+
+    // category filter pills, derived from tags
+    const cats = ['all', ...Array.from(new Set(writeups.flatMap((w) => w.tags)))];
+    let activeTag = 'all';
+    let query = '';
+    filters.innerHTML = cats
+      .map((c) => `<button class="fbtn${c === 'all' ? ' act' : ''}" type="button" data-tag="${esc(c)}">${esc(c)}</button>`)
+      .join('');
 
     const card = (w) => `<a href="#/w/${esc(w.slug)}" class="wu-card panel hov">
       <div class="top"><h2>${esc(w.title)}</h2><time>${esc(fmtDate(w.date))}</time></div>
@@ -189,17 +198,28 @@ const routes = {
       empty.hidden = items.length > 0;
       count.textContent = `${items.length} writeup${items.length === 1 ? '' : 's'}`;
     };
-    const search = (q) => {
-      q = q.trim().toLowerCase();
-      if (!q) return render(writeups);
-      render(
-        writeups.filter((w) =>
-          [w.title, w.summary, ...w.tags, ...w.mitre].join(' ').toLowerCase().includes(q)
-        )
-      );
+
+    const apply = () => {
+      let items = writeups;
+      if (activeTag !== 'all') items = items.filter((w) => w.tags.includes(activeTag));
+      if (query) {
+        items = items.filter((w) =>
+          [w.title, w.summary, ...w.tags, ...w.mitre].join(' ').toLowerCase().includes(query)
+        );
+      }
+      render(items);
     };
-    input.addEventListener('input', (e) => search(e.target.value));
-    render(writeups);
+
+    input.addEventListener('input', (e) => { query = e.target.value.trim().toLowerCase(); apply(); });
+    filters.addEventListener('click', (e) => {
+      const btn = e.target.closest('.fbtn');
+      if (!btn) return;
+      activeTag = btn.dataset.tag;
+      filters.querySelectorAll('.fbtn').forEach((b) => b.classList.toggle('act', b === btn));
+      apply();
+    });
+
+    apply();
     input.focus();
   },
 
@@ -227,7 +247,11 @@ const routes = {
     try {
       const html = await getRenderedContent(w);
       const bodyEl = app().querySelector('#wu-body');
-      if (bodyEl) { bodyEl.innerHTML = html; initReadbar(); }
+      if (bodyEl) {
+        bodyEl.innerHTML = html;
+        buildTOC(bodyEl, app().querySelector('#wu-toc'));
+        initReadbar();
+      }
     } catch {
       const bodyEl = app().querySelector('#wu-body');
       if (bodyEl) bodyEl.innerHTML = '<p class="cm-note">Could not load this write-up.</p>';
@@ -262,6 +286,61 @@ const routes = {
     </div></section>`;
   },
 };
+
+/* ------------------------------------------------------------------ TOC ---- */
+function slugify(s) {
+  return String(s).toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').slice(0, 60) || 'section';
+}
+
+let tocObserver = null;
+function buildTOC(bodyEl, tocEl) {
+  if (tocObserver) { tocObserver.disconnect(); tocObserver = null; }
+  if (!tocEl) return;
+  const heads = [...bodyEl.querySelectorAll('h2, h3')];
+  if (heads.length < 2) { tocEl.hidden = true; return; }
+
+  const used = new Set();
+  heads.forEach((h) => {
+    let id = slugify(h.textContent);
+    let n = 1;
+    while (used.has(id)) id = `${slugify(h.textContent)}-${n++}`;
+    used.add(id);
+    h.id = id;
+    h.style.scrollMarginTop = '90px';
+  });
+
+  tocEl.hidden = false;
+  tocEl.innerHTML =
+    `<div class="toc-h">Contents 目次</div><ul>` +
+    heads
+      .map((h) => `<li class="${h.tagName.toLowerCase()}"><a href="#${h.id}" data-id="${h.id}">${esc(h.textContent)}</a></li>`)
+      .join('') +
+    `</ul>`;
+
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  tocEl.querySelectorAll('a').forEach((a) => {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      const t = document.getElementById(a.dataset.id);
+      if (t) t.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+    });
+  });
+
+  // scrollspy
+  const links = new Map([...tocEl.querySelectorAll('a')].map((a) => [a.dataset.id, a]));
+  tocObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((en) => {
+        if (en.isIntersecting) {
+          links.forEach((l) => l.classList.remove('on'));
+          links.get(en.target.id)?.classList.add('on');
+        }
+      });
+    },
+    { rootMargin: '-80px 0px -70% 0px', threshold: 0 }
+  );
+  heads.forEach((h) => tocObserver.observe(h));
+}
 
 /* -------------------------------------------------------------- readbar ---- */
 let readbarEl = null;
@@ -303,6 +382,12 @@ export function resolve() {
 
   setActiveNav(page === 'writeup' ? 'writeups' : page);
   window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+}
+
+// Programmatic navigation helper.
+export function go(path) {
+  const p = path.startsWith('#') ? path.slice(1) : path;
+  location.hash = p.startsWith('/') ? p : `/${p}`;
 }
 
 export function startRouter() {

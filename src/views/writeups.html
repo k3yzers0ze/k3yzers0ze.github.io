@@ -9,13 +9,25 @@
 </header>
 
 <div class="wrap" style="padding-bottom:3rem">
-  <div class="panel wu-search">
-    <span class="prompt">$ grep -i</span>
-    <input id="wu-search" type="search" autocomplete="off" spellcheck="false" placeholder="title, tag, or ATT&CK technique…" aria-label="Search writeups" />
-    <kbd>/</kbd>
+  <div class="search" role="search">
+    <svg class="search-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2" />
+      <path d="M16 16l4.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+    </svg>
+    <input id="wu-search" type="search" autocomplete="off" spellcheck="false" enterkeyhint="search"
+      placeholder="Search write-ups, tags or ATT&CK techniques" aria-label="Search write-ups" />
+    <button class="search-clear" type="button" aria-label="Clear search" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+    </button>
+    <kbd class="search-kbd" aria-hidden="true">/</kbd>
   </div>
-  <div class="bfilters" id="wu-filters"></div>
-  <p class="wu-count" id="wu-count" aria-live="polite"></p>
+  <div class="search-meta">
+    <div class="bfilters" id="wu-filters" role="group" aria-label="Filter by tag"></div>
+    <p class="wu-count" id="wu-count" aria-live="polite"></p>
+  </div>
   <div class="wu-list" id="wu-list"></div>
-  <p class="wu-empty" id="wu-empty" hidden>// no writeups match that query</p>
+  <div class="wu-empty" id="wu-empty" hidden>
+    <p class="wu-empty-t">No write-ups match your search</p>
+    <p class="wu-empty-s">Try a different keyword, or clear the filters.</p>
+  </div>
 </div>

@@ -200,7 +200,9 @@ const routes = {
     const empty = app().querySelector('#wu-empty');
     const filters = app().querySelector('#wu-filters');
 
-    count.textContent = 'loading…';
+    const clearBtn = app().querySelector('.search-clear');
+
+    count.textContent = 'Loading…';
     const all = await loadWriteups();
     if (seq !== navSeq) return;
 
@@ -209,7 +211,7 @@ const routes = {
     let activeTag = 'all';
     let query = '';
     filters.innerHTML = cats
-      .map((c) => `<button class="fbtn${c === 'all' ? ' act' : ''}" type="button" data-tag="${esc(c)}">${esc(c)}</button>`)
+      .map((c) => `<button class="fbtn${c === 'all' ? ' act' : ''}" type="button" data-tag="${esc(c)}" aria-pressed="${c === 'all'}">${c === 'all' ? 'All' : esc(c)}</button>`)
       .join('');
 
     const card = (w) => `<a href="#/w/${esc(w.slug)}" class="wu-card panel hov">
@@ -221,7 +223,10 @@ const routes = {
     const render = (items) => {
       list.innerHTML = items.map(card).join('');
       empty.hidden = items.length > 0;
-      count.textContent = `${items.length} writeup${items.length === 1 ? '' : 's'}`;
+      const filtered = query || activeTag !== 'all';
+      count.innerHTML = filtered
+        ? `<b>${items.length}</b> of ${all.length} write-up${all.length === 1 ? '' : 's'}`
+        : `<b>${all.length}</b> write-up${all.length === 1 ? '' : 's'}`;
     };
 
     const apply = () => {
@@ -235,17 +240,27 @@ const routes = {
       render(items);
     };
 
-    input.addEventListener('input', (e) => { query = e.target.value.trim().toLowerCase(); apply(); });
+    const onInput = () => {
+      query = input.value.trim().toLowerCase();
+      clearBtn.hidden = input.value.length === 0;
+      apply();
+    };
+    input.addEventListener('input', onInput);
+    clearBtn.addEventListener('click', () => { input.value = ''; onInput(); input.focus(); });
     filters.addEventListener('click', (e) => {
       const btn = e.target.closest('.fbtn');
       if (!btn) return;
       activeTag = btn.dataset.tag;
-      filters.querySelectorAll('.fbtn').forEach((b) => b.classList.toggle('act', b === btn));
+      filters.querySelectorAll('.fbtn').forEach((b) => {
+        b.classList.toggle('act', b === btn);
+        b.setAttribute('aria-pressed', String(b === btn));
+      });
       apply();
     });
 
     apply();
-    input.focus();
+    // Autofocus only with a precise pointer — on phones it would pop the keyboard over the list.
+    if (window.matchMedia('(pointer: fine)').matches) input.focus({ preventScroll: true });
   },
 
   writeup: async (slug) => {
@@ -435,7 +450,27 @@ export function go(path) {
   location.hash = p.startsWith('/') ? p : `/${p}`;
 }
 
+// Search shortcuts, installed once: "/" focuses the write-ups search, Esc clears it.
+function onSearchKeys(e) {
+  const input = document.getElementById('wu-search');
+  if (!input) return;
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
+  if (e.key === '/' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault();
+    input.focus();
+    input.select();
+  } else if (e.key === 'Escape' && document.activeElement === input) {
+    if (input.value) {
+      input.value = '';
+      input.dispatchEvent(new Event('input'));
+    } else {
+      input.blur();
+    }
+  }
+}
+
 export function startRouter() {
   window.addEventListener('hashchange', resolve);
+  document.addEventListener('keydown', onSearchKeys);
   resolve();
 }

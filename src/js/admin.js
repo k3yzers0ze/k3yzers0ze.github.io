@@ -1,278 +1,655 @@
-// Admin dashboard (#/admin): login, KPIs, tag chart, and posts CRUD.
-// Every write is authorized server-side by the UID rule in database.rules.json —
-// this UI only decides what to show.
+// Admin dashboard (#/admin).
+// Tabs: Write-ups (Firebase CRUD, live) and Certificates (UI ready; database
+// sync is wired in Phase 3). Every write is authorized server-side by the UID
+// rule in database.rules.json — this UI only decides what to show.
 import config from '../data/config.json';
 import skills from '../data/skills.json';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 import { firebaseEnabled, readOnce, writeData, removeData } from './firebase.js';
 import { initAuth, onAdminChange, adminSignIn, adminSignOut, ADMIN_EMAIL } from './auth.js';
 import { writeups as bundled, invalidateWriteups } from './writeups.js';
 import { localViews } from './analytics.js';
 import { barChart } from './components/Chart.js';
-import { esc, fmtDate } from './util.js';
+import { toast } from './components/Toast.js';
+import { openDrawer, confirmDialog } from './components/Drawer.js';
+import { esc, fmtDate, safeUrl } from './util.js';
 
+/* ------------------------------------------------------------------ state -- */
 let unsubscribe = null;
+let currentView = null; // 'login' | 'denied' | 'dashboard'
+const state = { tab: 'writeups', filter: '', posts: {}, rows: { writeups: [], certs: [] } };
 
+const SLUG_RE = /^[a-z0-9-]{1,80}$/;
+const CERTS_LIVE = false; // flipped on in Phase 3 when certs sync to Firebase
+
+const slugify = (s) =>
+  String(s).toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
+const toList = (s) => String(s || '').split(',').map((x) => x.trim()).filter(Boolean);
+
+const ICON = {
+  edit: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+  del: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V4h4v3m-7 0l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  view: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  search: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+};
+
+/** Turn Firebase/network errors into something actionable. */
+function fbError(e) {
+  const raw = String(e?.code || e?.message || e || '');
+  if (/permission[_ -]?denied/i.test(raw)) return 'Permission denied — publish the latest database.rules.json in the Firebase console.';
+  if (/network|offline|unavailable|failed to fetch/i.test(raw)) return 'Network error — check your connection and try again.';
+  if (/too-many-requests/i.test(raw)) return 'Too many attempts. Wait a minute and try again.';
+  return e?.message || 'Something went wrong.';
+}
+
+/* ------------------------------------------------------------------ entry -- */
 export async function renderAdmin(root) {
   if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+  currentView = null;
   root.innerHTML = '<div class="wrap adm"><div id="adm"></div></div>';
   const mount = root.querySelector('#adm');
 
   if (!firebaseEnabled) {
-    mount.innerHTML = `<div class="panel adm-login"><h2>Admin</h2><p class="cm-note" style="margin-top:1rem">
-      Firebase isn't configured in this build, so the admin panel is unavailable.
-      Set the <code>FIREBASE</code> secret (or <code>.env</code> locally) and rebuild.</p></div>`;
+    mount.innerHTML = `<div class="adm-card adm-login">
+      <h2 class="adm-login-t">Admin unavailable</h2>
+      <p class="adm-muted">Firebase isn't configured in this build. Set the <code>FIREBASE</code> secret
+      (or <code>.env</code> locally) and rebuild.</p></div>`;
     return;
   }
 
-  mount.innerHTML = '<p class="cm-note">Connecting…</p>';
+  mount.innerHTML = `<div class="adm-card adm-login" aria-busy="true">
+    <div class="skel skel-circle"></div><div class="skel skel-line w60"></div><div class="skel skel-line w80"></div>
+    <div class="skel skel-block"></div><div class="skel skel-block"></div></div>`;
+
   try {
     await initAuth();
   } catch (e) {
-    mount.innerHTML = `<p class="err">Could not reach Firebase: ${esc(e.message)}</p>`;
+    mount.innerHTML = `<div class="adm-card adm-login"><h2 class="adm-login-t">Connection failed</h2>
+      <p class="adm-muted">${esc(fbError(e))}</p></div>`;
     return;
   }
 
   unsubscribe = onAdminChange((st) => {
     if (!mount.isConnected) { unsubscribe?.(); unsubscribe = null; return; }
     if (!st.ready) return;
-    if (st.user && st.isAdmin) dashboard(mount);
-    else if (st.user) denied(mount);
-    else login(mount);
+    const next = st.user && st.isAdmin ? 'dashboard' : st.user ? 'denied' : 'login';
+    if (next === currentView) return;
+    currentView = next;
+    try {
+      if (next === 'dashboard') dashboard(mount, st.user);
+      else if (next === 'denied') denied(mount);
+      else login(mount);
+    } catch (e) {
+      mount.innerHTML = `<p class="adm-err">${esc(e.message)}</p>`;
+    }
   });
 }
 
 /* ------------------------------------------------------------------ login -- */
 function login(mount) {
   mount.innerHTML = `
-    <div class="panel adm-login">
-      <h2>Admin Access</h2>
-      <p class="jp" style="font-family:var(--mono);font-size:.58rem;letter-spacing:.4em;color:var(--sakura);margin:.4rem 0 1.6rem">管理者</p>
-      <form novalidate>
-        <div class="field"><label for="adm-email">Email</label>
-          <input id="adm-email" type="email" name="email" autocomplete="username" required value="${esc(ADMIN_EMAIL)}" /></div>
-        <div class="field"><label for="adm-pass">Password</label>
-          <input id="adm-pass" type="password" name="password" autocomplete="current-password" required /></div>
-        <button class="btn" type="submit">Sign in</button>
-        <p class="err" role="alert"></p>
+    <div class="adm-card adm-login">
+      <div class="adm-login-mark" aria-hidden="true">&gt;_</div>
+      <h2 class="adm-login-t">Admin access</h2>
+      <p class="adm-muted">Sign in to manage write-ups and certificates.</p>
+      <form class="aform" novalidate>
+        <div class="afield">
+          <label for="adm-email">Email</label>
+          <input id="adm-email" type="email" name="email" autocomplete="username" required />
+        </div>
+        <div class="afield">
+          <label for="adm-pass">Password</label>
+          <div class="afield-pw">
+            <input id="adm-pass" type="password" name="password" autocomplete="current-password" required />
+            <button type="button" class="pw-toggle" aria-label="Show password" aria-pressed="false">Show</button>
+          </div>
+        </div>
+        <button class="abtn primary full" type="submit"><span class="spin" aria-hidden="true"></span><span class="lbl">Sign in</span></button>
+        <p class="adm-err" role="alert"></p>
       </form>
     </div>`;
 
   const form = mount.querySelector('form');
-  const err = mount.querySelector('.err');
-  form.querySelector('#adm-pass').focus();
+  const err = mount.querySelector('.adm-err');
+  const pass = form.querySelector('#adm-pass');
+  form.email.value = ADMIN_EMAIL;
+  pass.focus();
+
+  const toggle = form.querySelector('.pw-toggle');
+  toggle.addEventListener('click', () => {
+    const show = pass.type === 'password';
+    pass.type = show ? 'text' : 'password';
+    toggle.textContent = show ? 'Hide' : 'Show';
+    toggle.setAttribute('aria-pressed', String(show));
+    toggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+  });
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const btn = form.querySelector('button');
+    const btn = form.querySelector('button[type=submit]');
+    if (!form.email.value.trim() || !pass.value) { err.textContent = 'Enter your email and password.'; return; }
     btn.disabled = true;
+    btn.classList.add('busy');
     err.textContent = '';
     try {
-      await adminSignIn(form.email.value.trim(), form.password.value);
-      // onAdminChange re-renders into the dashboard.
+      await adminSignIn(form.email.value.trim(), pass.value);
+      toast('Signed in. Welcome back.', 'success');
+      // onAdminChange swaps in the dashboard.
     } catch (ex) {
-      // Deliberately generic — don't reveal whether the email or password was wrong.
-      err.textContent = ex?.code === 'auth/too-many-requests'
+      // Deliberately generic: don't reveal whether the email or the password was wrong.
+      err.textContent = /too-many-requests/.test(ex?.code || '')
         ? 'Too many attempts. Try again later.'
         : 'Sign-in failed. Check your credentials.';
       btn.disabled = false;
+      btn.classList.remove('busy');
     }
   });
 }
 
 function denied(mount) {
-  mount.innerHTML = `<div class="panel adm-login"><h2>Not authorized</h2>
-    <p class="cm-note" style="margin:1rem 0">This account isn't the site admin.</p>
-    <button class="btn ghost" type="button" data-out>Sign out</button></div>`;
-  mount.querySelector('[data-out]').addEventListener('click', () => adminSignOut());
+  mount.innerHTML = `<div class="adm-card adm-login"><h2 class="adm-login-t">Not authorized</h2>
+    <p class="adm-muted">This account isn't the site admin.</p>
+    <button class="abtn ghost full" type="button" data-out>Sign out</button></div>`;
+  mount.querySelector('[data-out]').addEventListener('click', signOut);
+}
+
+async function signOut() {
+  try {
+    await adminSignOut();
+    toast('Signed out.', 'info');
+  } catch (e) {
+    toast(fbError(e), 'error');
+  }
 }
 
 /* -------------------------------------------------------------- dashboard -- */
-async function dashboard(mount) {
-  mount.innerHTML = '<p class="cm-note">Loading dashboard…</p>';
-  let posts = {};
+const skelKpis = () => Array.from({ length: 6 }, () => '<div class="kpi"><div class="skel skel-line w40 tall"></div><div class="skel skel-line w70"></div></div>').join('');
+const skelRows = (n = 4) => `<div class="adm-skel-rows" aria-busy="true">${Array.from({ length: n }, () =>
+  '<div class="skel-row"><div class="skel skel-line w50"></div><div class="skel skel-line w20"></div><div class="skel skel-pill"></div></div>').join('')}</div>`;
+
+function dashboard(mount, user) {
+  state.filter = '';
+  const email = user?.email || '';
+  mount.innerHTML = `
+    <header class="adm-top">
+      <div>
+        <p class="adm-kicker">// admin · 管理</p>
+        <h1 class="adm-title">Dashboard</h1>
+      </div>
+      <div class="adm-user">
+        <span class="adm-avatar" aria-hidden="true">${esc((email[0] || 'A').toUpperCase())}</span>
+        <span class="adm-who"><b>Administrator</b><s>${esc(email)}</s></span>
+        <button class="abtn ghost" type="button" data-out>Sign out</button>
+      </div>
+    </header>
+
+    <section class="adm-kpis" data-kpis aria-label="Key figures">${skelKpis()}</section>
+
+    <section class="adm-grid">
+      <div class="adm-card adm-main">
+        <div class="adm-tabs" role="tablist" aria-label="Content type">
+          <button class="adm-tab" role="tab" id="tab-writeups" data-tab="writeups" aria-controls="adm-panel" aria-selected="true">
+            Write-ups <span class="cnt" data-cnt="writeups">–</span></button>
+          <button class="adm-tab" role="tab" id="tab-certs" data-tab="certs" aria-controls="adm-panel" aria-selected="false" tabindex="-1">
+            Certificates <span class="cnt" data-cnt="certs">–</span></button>
+        </div>
+        <div class="adm-toolbar">
+          <label class="adm-filter">${ICON.search}
+            <input type="search" data-filter placeholder="Filter…" aria-label="Filter rows" autocomplete="off" />
+          </label>
+          <button class="abtn primary" type="button" data-new>+ New write-up</button>
+        </div>
+        <div id="adm-panel" role="tabpanel" aria-labelledby="tab-writeups" data-panel>${skelRows()}</div>
+      </div>
+
+      <aside class="adm-card adm-side" aria-label="Insights">
+        <h3 class="adm-h3">Posts by tag</h3>
+        <canvas class="chart" role="img" aria-label="Bar chart of posts per tag"></canvas>
+        <div class="adm-note">
+          <p><b>Bundled</b> posts live in <code>src/data/writeups/</code>. Editing one saves a database copy that overrides it.</p>
+          <p><b>Drafts</b> are stored in the database but never sent to visitors.</p>
+        </div>
+      </aside>
+    </section>`;
+
+  mount.querySelector('[data-out]').addEventListener('click', signOut);
+
+  // tabs (click + arrow keys)
+  const tabs = [...mount.querySelectorAll('.adm-tab')];
+  const selectTab = (name, focus = false) => {
+    state.tab = name;
+    tabs.forEach((t) => {
+      const on = t.dataset.tab === name;
+      t.setAttribute('aria-selected', String(on));
+      t.tabIndex = on ? 0 : -1;
+      if (on && focus) t.focus();
+    });
+    mount.querySelector('[data-panel]').setAttribute('aria-labelledby', `tab-${name}`);
+    renderTable(mount);
+  };
+  tabs.forEach((t) => {
+    t.addEventListener('click', () => selectTab(t.dataset.tab));
+    t.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      const i = tabs.indexOf(t);
+      const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+      selectTab(next.dataset.tab, true);
+    });
+  });
+
+  const filter = mount.querySelector('[data-filter]');
+  filter.addEventListener('input', () => { state.filter = filter.value.trim().toLowerCase(); renderTable(mount); });
+
+  mount.querySelector('[data-new]').addEventListener('click', () => {
+    if (state.tab === 'writeups') openWriteupEditor(mount, null);
+    else openCertEditor(null);
+  });
+
+  // row actions (delegated)
+  mount.querySelector('[data-panel]').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-act]');
+    if (!b) return;
+    const row = state.rows[state.tab].find((r) => r.id === b.dataset.id);
+    if (!row) return;
+    if (b.dataset.act === 'edit') {
+      if (state.tab === 'writeups') openWriteupEditor(mount, row);
+      else openCertEditor(row);
+    } else if (b.dataset.act === 'del') {
+      deleteWriteup(mount, row);
+    }
+  });
+
+  loadData(mount);
+}
+
+async function loadData(mount, { quiet = false } = {}) {
+  const panel = mount.querySelector('[data-panel]');
+  if (!panel) return;
+  if (!quiet) panel.innerHTML = skelRows();
   try {
-    posts = (await readOnce('posts')) || {};
+    const posts = (await readOnce('posts')) || {};
+    state.posts = posts;
+    state.rows.writeups = buildWriteupRows(posts);
+    state.rows.certs = config.certs.map((c, i) => ({ id: `cert-${i}`, source: 'bundled', ...c }));
+    if (!mount.isConnected) return;
+    renderKpis(mount);
+    renderCounts(mount);
+    renderTable(mount);
+    renderChart(mount);
   } catch (e) {
-    mount.innerHTML = `<p class="err">Could not load posts: ${esc(e.message)}. Are the database rules published?</p>`;
+    const msg = fbError(e);
+    panel.innerHTML = `<div class="adm-empty">
+      <p class="adm-empty-t">Couldn't load data</p><p class="adm-empty-s">${esc(msg)}</p>
+      <button class="abtn ghost" type="button" data-retry>Retry</button></div>`;
+    panel.querySelector('[data-retry]').addEventListener('click', () => loadData(mount));
+    mount.querySelector('[data-kpis]').innerHTML = '';
+    toast(msg, 'error');
+  }
+}
+
+function buildWriteupRows(posts) {
+  const dbRows = Object.entries(posts).map(([slug, p]) => ({
+    id: slug, slug, source: 'db',
+    title: p.title || slug, date: p.date || '', excerpt: p.excerpt || '',
+    tags: Array.isArray(p.tags) ? p.tags : [], mitre: Array.isArray(p.mitre) ? p.mitre : [],
+    platform: p.platform || '', difficulty: p.difficulty || '', published: p.published === true,
+  }));
+  const dbSlugs = new Set(dbRows.map((r) => r.slug));
+  const bundledRows = bundled.filter((w) => !dbSlugs.has(w.slug)).map((w) => ({
+    id: w.slug, slug: w.slug, source: 'bundled',
+    title: w.title, date: w.date, excerpt: w.summary, tags: w.tags, mitre: w.mitre,
+    platform: w.platform, difficulty: w.difficulty, published: true,
+  }));
+  return [...dbRows, ...bundledRows].sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+
+function renderKpis(mount) {
+  const w = state.rows.writeups;
+  const db = w.filter((r) => r.source === 'db');
+  const kpis = [
+    { v: w.length, l: 'Write-ups', tone: 'cyber' },
+    { v: db.filter((r) => r.published).length, l: 'Published (DB)', tone: 'jade' },
+    { v: db.filter((r) => !r.published).length, l: 'Drafts', tone: 'gold' },
+    { v: w.filter((r) => r.source === 'bundled').length, l: 'Bundled', tone: 'muted' },
+    { v: state.rows.certs.length, l: 'Certificates', tone: 'sakura' },
+    { v: localViews(), l: 'Views · this browser', tone: 'violet' },
+  ];
+  mount.querySelector('[data-kpis]').innerHTML = kpis
+    .map((k) => `<div class="kpi" data-tone="${k.tone}"><b>${esc(k.v)}</b><span>${esc(k.l)}</span></div>`)
+    .join('');
+}
+
+function renderCounts(mount) {
+  mount.querySelector('[data-cnt="writeups"]').textContent = state.rows.writeups.length;
+  mount.querySelector('[data-cnt="certs"]').textContent = state.rows.certs.length;
+}
+
+function renderChart(mount) {
+  try {
+    const counts = {};
+    state.rows.writeups.forEach((r) => r.tags.forEach((t) => { counts[t] = (counts[t] || 0) + 1; }));
+    const data = Object.entries(counts).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+    barChart(mount.querySelector('.chart'), data);
+  } catch { /* chart is decorative */ }
+}
+
+function renderTable(mount) {
+  const panel = mount.querySelector('[data-panel]');
+  const newBtn = mount.querySelector('[data-new]');
+  if (!panel || !newBtn) return;
+  const tab = state.tab;
+  newBtn.textContent = tab === 'writeups' ? '+ New write-up' : '+ New certificate';
+
+  let rows = state.rows[tab];
+  const q = state.filter;
+  if (q) {
+    rows = rows.filter((r) =>
+      [r.title, r.slug, r.name, r.issuer, ...(r.tags || [])].filter(Boolean).join(' ').toLowerCase().includes(q)
+    );
+  }
+
+  const banner = tab === 'certs' && !CERTS_LIVE
+    ? '<div class="adm-banner">Certificates are read-only until Phase 3 connects them to the database. The editor UI is ready to review.</div>'
+    : '';
+
+  if (!rows.length) {
+    panel.innerHTML = `${banner}<div class="adm-empty">
+      <p class="adm-empty-t">${q ? 'No matches' : 'Nothing here yet'}</p>
+      <p class="adm-empty-s">${q ? 'Try a different filter.' : `Create your first ${tab === 'writeups' ? 'write-up' : 'certificate'}.`}</p></div>`;
     return;
   }
 
-  const dbSlugs = new Set(Object.keys(posts));
-  const dbList = Object.entries(posts).map(([slug, p]) => ({ slug, ...p, source: 'db' }));
-  const bundledOnly = bundled.filter((w) => !dbSlugs.has(w.slug)).map((w) => ({
-    slug: w.slug, title: w.title, date: w.date, excerpt: w.summary, tags: w.tags, mitre: w.mitre,
-    platform: w.platform, difficulty: w.difficulty, published: true, source: 'bundled',
-  }));
-  const all = [...dbList, ...bundledOnly].sort((a, b) => new Date(b.date) - new Date(a.date));
+  panel.innerHTML = banner + (tab === 'writeups' ? writeupTable(rows) : certTable(rows));
+}
 
-  const published = dbList.filter((p) => p.published).length;
-  const kpis = [
-    { b: all.length, s: 'total posts' },
-    { b: published, s: 'db published' },
-    { b: dbList.length - published, s: 'db drafts' },
-    { b: bundledOnly.length, s: 'bundled' },
-    { b: skills.length, s: 'skills' },
-    { b: config.certs.length, s: 'certs' },
-    { b: localViews(), s: 'views (this browser)' },
-  ];
+function statusBadge(r) {
+  if (r.source === 'bundled') return '<span class="pill pill-muted">Bundled</span>';
+  return r.published ? '<span class="pill pill-jade">Published</span>' : '<span class="pill pill-gold">Draft</span>';
+}
 
-  const tagCounts = {};
-  all.forEach((p) => (Array.isArray(p.tags) ? p.tags : []).forEach((t) => { tagCounts[t] = (tagCounts[t] || 0) + 1; }));
-  const tagData = Object.entries(tagCounts).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+function writeupTable(rows) {
+  return `<div class="adm-table-wrap"><table class="adm-table">
+    <thead><tr><th scope="col">Title</th><th scope="col">Date</th><th scope="col">Tags</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>${rows.map((r) => {
+      const tags = r.tags.slice(0, 3).map((t) => `<span class="tagchip">${esc(t)}</span>`).join('');
+      const more = r.tags.length > 3 ? `<span class="tagchip more">+${r.tags.length - 3}</span>` : '';
+      const live = r.source === 'bundled' || r.published;
+      return `<tr>
+        <td data-label="Title"><div class="cell-title"><b>${esc(r.title)}</b><s>/w/${esc(r.slug)}</s></div></td>
+        <td data-label="Date" class="cell-date">${esc(r.date ? fmtDate(r.date) : '—')}</td>
+        <td data-label="Tags"><div class="cell-tags">${tags}${more || (tags ? '' : '<span class="adm-muted">—</span>')}</div></td>
+        <td data-label="Status">${statusBadge(r)}</td>
+        <td class="cell-act">
+          ${live ? `<a class="iconbtn" href="#/w/${esc(r.slug)}" title="View" aria-label="View ${esc(r.title)}">${ICON.view}</a>` : ''}
+          <button class="iconbtn" type="button" data-act="edit" data-id="${esc(r.id)}" title="Edit" aria-label="Edit ${esc(r.title)}">${ICON.edit}</button>
+          ${r.source === 'db' ? `<button class="iconbtn danger" type="button" data-act="del" data-id="${esc(r.id)}" title="Delete" aria-label="Delete ${esc(r.title)}">${ICON.del}</button>` : ''}
+        </td>
+      </tr>`;
+    }).join('')}</tbody></table></div>`;
+}
 
-  mount.innerHTML = `
-    <div class="adm-h">
-      <div>
-        <p class="phead-k" style="margin-bottom:.6rem">// admin · 管理</p>
-        <h2 style="font-family:var(--display);font-size:clamp(2rem,5vw,3rem);line-height:1;text-transform:uppercase">Dashboard</h2>
-      </div>
-      <div style="display:flex;gap:.6rem;flex-wrap:wrap">
-        <button class="btn" type="button" data-new>+ New post</button>
-        <button class="btn ghost" type="button" data-out>Sign out</button>
-      </div>
-    </div>
+function certTable(rows) {
+  return `<div class="adm-table-wrap"><table class="adm-table">
+    <thead><tr><th scope="col">Certificate</th><th scope="col">Issuer</th><th scope="col">Date</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>${rows.map((r) => {
+      const logo = safeUrl(r.badge);
+      return `<tr>
+        <td data-label="Certificate"><div class="cell-cert">
+          ${logo ? `<img src="${esc(logo)}" alt="" width="34" height="34" loading="lazy" />` : '<span class="cert-ph" aria-hidden="true">?</span>'}
+          <b>${esc(r.name)}</b></div></td>
+        <td data-label="Issuer">${esc(r.issuer)}</td>
+        <td data-label="Date" class="cell-date">${esc(r.date || '—')}</td>
+        <td data-label="Status">${r.status === 'in-progress' ? '<span class="pill pill-gold">In progress</span>' : '<span class="pill pill-jade">Earned</span>'}</td>
+        <td class="cell-act">
+          <button class="iconbtn" type="button" data-act="edit" data-id="${esc(r.id)}" title="Edit" aria-label="Edit ${esc(r.name)}">${ICON.edit}</button>
+        </td>
+      </tr>`;
+    }).join('')}</tbody></table></div>`;
+}
 
-    <div class="kpis">${kpis.map((k) => `<div class="kpi panel"><b>${esc(k.b)}</b><s>${esc(k.s)}</s></div>`).join('')}</div>
+/* ------------------------------------------------------- write-up editor -- */
+const FOOTER = (saveLabel, disabled = false) => `
+  <button class="abtn ghost" type="button" data-cancel>Cancel</button>
+  <button class="abtn primary" type="button" data-save ${disabled ? 'disabled' : ''}><span class="spin" aria-hidden="true"></span><span class="lbl">${esc(saveLabel)}</span></button>`;
 
-    <div class="acard panel">
-      <h3>Posts by tag</h3>
-      <canvas class="chart" aria-label="Posts by tag bar chart" role="img"></canvas>
-    </div>
+function serialize(form) {
+  return JSON.stringify([...new FormData(form).entries()]) + (form.published?.checked ? '1' : '0');
+}
 
-    <div class="acard panel" data-editor hidden></div>
+async function openWriteupEditor(mount, row) {
+  const isNew = !row;
+  const drawer = openDrawer({
+    title: isNew ? 'New write-up' : 'Edit write-up',
+    subtitle: isNew ? 'Saved to Firebase · appears instantly, no redeploy' : `/w/${row.slug}${row.source === 'bundled' ? ' · bundled — saving creates a DB copy' : ''}`,
+    body: `
+      <form class="aform" novalidate>
+        <div class="afield"><label for="f-title">Title</label>
+          <input id="f-title" name="title" required maxlength="200" placeholder="Kerberoasting an attack path to Domain Admin" /></div>
+        <div class="arow">
+          <div class="afield"><label for="f-slug">Slug</label>
+            <div class="afield-prefix"><span>/w/</span><input id="f-slug" name="slug" required maxlength="80" spellcheck="false" ${isNew ? '' : 'readonly'} /></div>
+            <small class="hint">Lowercase letters, digits and dashes.</small></div>
+          <div class="afield"><label for="f-date">Date</label><input id="f-date" type="date" name="date" required /></div>
+        </div>
+        <div class="afield"><label for="f-excerpt">Excerpt <span class="count" data-count="excerpt"></span></label>
+          <textarea id="f-excerpt" name="excerpt" rows="3" maxlength="500" placeholder="One or two sentences for the list and social previews."></textarea></div>
+        <div class="arow">
+          <div class="afield"><label for="f-tags">Tags</label><input id="f-tags" name="tags" placeholder="Active Directory, Kerberoasting" /><small class="hint">Comma-separated.</small></div>
+          <div class="afield"><label for="f-mitre">MITRE ATT&amp;CK IDs</label><input id="f-mitre" name="mitre" placeholder="T1558.003, T1003.006" /><small class="hint">Comma-separated.</small></div>
+        </div>
+        <div class="arow">
+          <div class="afield"><label for="f-platform">Platform</label><input id="f-platform" name="platform" maxlength="80" placeholder="Hack The Box" /></div>
+          <div class="afield"><label for="f-difficulty">Difficulty</label><input id="f-difficulty" name="difficulty" maxlength="40" placeholder="Medium" /></div>
+        </div>
+        <div class="afield">
+          <div class="afield-head"><label for="f-content">Content · Markdown</label>
+            <div class="seg" role="group" aria-label="Editor mode">
+              <button type="button" class="seg-b act" data-mode="write" aria-pressed="true">Write</button>
+              <button type="button" class="seg-b" data-mode="preview" aria-pressed="false">Preview</button>
+            </div></div>
+          <textarea id="f-content" name="content" rows="16" spellcheck="false" placeholder="## TL;DR&#10;…"></textarea>
+          <div class="md-preview article-body" hidden></div>
+        </div>
+        <label class="aswitch"><input type="checkbox" name="published" />
+          <span class="aswitch-ui" aria-hidden="true"></span>
+          <span class="aswitch-t">Published<small>Drafts stay in the database and are never shown to visitors.</small></span></label>
+        <p class="adm-err" data-err role="alert"></p>
+      </form>`,
+    footer: FOOTER(isNew ? 'Create write-up' : 'Save changes'),
+    beforeClose: async () => {
+      if (baseline === null || serialize(form) === baseline) return true;
+      return confirmDialog({ title: 'Discard changes?', message: 'You have unsaved edits in this write-up.', confirmText: 'Discard', danger: true });
+    },
+  });
 
-    <div class="acard panel">
-      <h3>Posts</h3>
-      <div class="table-wrap"><table class="atable">
-        <thead><tr><th>Title</th><th class="hide-sm">Date</th><th>Status</th><th></th></tr></thead>
-        <tbody>${all.map(row).join('') || '<tr><td colspan="4" class="cm-note">No posts yet.</td></tr>'}</tbody>
-      </table></div>
-      <p class="cm-note" style="margin-top:.8rem">Bundled posts live in <code>src/data/writeups/</code>. Editing one saves a DB copy that overrides it.</p>
-    </div>`;
+  const form = drawer.body.querySelector('form');
+  const f = form.elements;
+  const err = form.querySelector('[data-err]');
+  const content = f.content;
+  const preview = form.querySelector('.md-preview');
+  let baseline = null;
 
-  barChart(mount.querySelector('.chart'), tagData);
+  // fill values via properties (no attribute interpolation of user data)
+  f.title.value = row?.title || '';
+  f.slug.value = row?.slug || '';
+  f.date.value = (row?.date || new Date().toISOString()).slice(0, 10);
+  f.excerpt.value = row?.excerpt || '';
+  f.tags.value = (row?.tags || []).join(', ');
+  f.mitre.value = (row?.mitre || []).join(', ');
+  f.platform.value = row?.platform || '';
+  f.difficulty.value = row?.difficulty || '';
+  f.published.checked = isNew ? false : row.published !== false;
 
-  mount.querySelector('[data-out]').addEventListener('click', () => adminSignOut());
-  mount.querySelector('[data-new]').addEventListener('click', () => openEditor(mount, null));
-  mount.querySelector('tbody').addEventListener('click', async (e) => {
-    const b = e.target.closest('button[data-act]');
-    if (!b) return;
-    const slug = b.dataset.slug;
-    if (b.dataset.act === 'edit') {
-      const p = all.find((x) => x.slug === slug);
-      openEditor(mount, p);
-    } else if (b.dataset.act === 'del') {
-      if (!confirm(`Delete "${slug}" from the database? This can't be undone.`)) return;
-      b.disabled = true;
+  // excerpt counter
+  const cnt = form.querySelector('[data-count="excerpt"]');
+  const updateCount = () => { cnt.textContent = `${f.excerpt.value.length}/500`; };
+  f.excerpt.addEventListener('input', updateCount);
+  updateCount();
+
+  // auto-slug from title for new posts until the slug is edited by hand
+  let slugTouched = !isNew;
+  f.slug.addEventListener('input', () => { slugTouched = true; });
+  f.title.addEventListener('input', () => { if (!slugTouched) f.slug.value = slugify(f.title.value); });
+
+  // write / preview toggle (preview sanitized with DOMPurify)
+  form.querySelectorAll('.seg-b').forEach((b) => b.addEventListener('click', () => {
+    const toPreview = b.dataset.mode === 'preview';
+    form.querySelectorAll('.seg-b').forEach((x) => {
+      x.classList.toggle('act', x === b);
+      x.setAttribute('aria-pressed', String(x === b));
+    });
+    if (toPreview) {
       try {
-        await removeData(`posts/${slug}`);        // hide first…
-        await removeData(`postContent/${slug}`);  // …then drop content
-        invalidateWriteups();
-        dashboard(mount);
-      } catch (ex) {
-        alert(`Delete failed: ${ex.message}`);
-        b.disabled = false;
+        preview.innerHTML = DOMPurify.sanitize(marked.parse(content.value || '*Nothing to preview yet.*'));
+      } catch {
+        preview.textContent = 'Preview failed to render.';
       }
     }
-  });
-}
+    preview.hidden = !toPreview;
+    content.hidden = toPreview;
+  }));
 
-function row(p) {
-  const badge = p.source === 'bundled'
-    ? '<span class="badge bun">bundled</span>'
-    : p.published ? '<span class="badge pub">published</span>' : '<span class="badge draft">draft</span>';
-  return `<tr>
-    <td><a href="#/w/${esc(p.slug)}">${esc(p.title || p.slug)}</a><br/><span class="cm-note">${esc(p.slug)}</span></td>
-    <td class="hide-sm">${esc(p.date ? fmtDate(p.date) : '')}</td>
-    <td>${badge}</td>
-    <td class="act">
-      <button class="mini" type="button" data-act="edit" data-slug="${esc(p.slug)}">edit</button>
-      ${p.source === 'db' ? `<button class="mini dan" type="button" data-act="del" data-slug="${esc(p.slug)}">delete</button>` : ''}
-    </td>
-  </tr>`;
-}
-
-/* ----------------------------------------------------------------- editor -- */
-async function openEditor(mount, p) {
-  const ed = mount.querySelector('[data-editor]');
-  const isNew = !p;
-  const join = (v) => (Array.isArray(v) ? v.join(', ') : v || '');
-
-  let content = '';
-  if (p?.source === 'db') {
-    try { content = (await readOnce(`postContent/${p.slug}`)) || ''; } catch {}
+  // load body: DB content for DB posts, bundled Markdown otherwise
+  if (row?.source === 'db') {
+    content.disabled = true;
+    content.placeholder = 'Loading content…';
+    try {
+      content.value = (await readOnce(`postContent/${row.slug}`)) || '';
+    } catch (e) {
+      toast(`Couldn't load content: ${fbError(e)}`, 'error');
+    }
+    content.disabled = false;
+    content.placeholder = '';
+  } else if (row) {
+    content.value = bundled.find((w) => w.slug === row.slug)?.body || '';
   }
-  if (!content && p) content = bundled.find((w) => w.slug === p.slug)?.body || '';
+  baseline = serialize(form);
 
-  ed.hidden = false;
-  ed.innerHTML = `
-    <h3>${isNew ? 'New post' : `Edit · ${esc(p.slug)}`}</h3>
-    <form novalidate>
-      <div class="row2">
-        <div class="field"><label>Slug (URL)</label>
-          <input name="slug" required pattern="[a-z0-9-]{1,80}" value="${esc(p?.slug || '')}" ${isNew ? '' : 'readonly'} placeholder="my-htb-box" /></div>
-        <div class="field"><label>Date</label>
-          <input name="date" type="date" required value="${esc((p?.date || new Date().toISOString()).slice(0, 10))}" /></div>
-      </div>
-      <div class="field"><label>Title</label><input name="title" required maxlength="200" value="${esc(p?.title || '')}" /></div>
-      <div class="field"><label>Excerpt</label><textarea name="excerpt" rows="2" maxlength="500">${esc(p?.excerpt || '')}</textarea></div>
-      <div class="row2">
-        <div class="field"><label>Tags (comma-separated)</label><input name="tags" value="${esc(join(p?.tags))}" /></div>
-        <div class="field"><label>MITRE IDs (comma-separated)</label><input name="mitre" value="${esc(join(p?.mitre))}" /></div>
-      </div>
-      <div class="row2">
-        <div class="field"><label>Platform</label><input name="platform" maxlength="80" value="${esc(p?.platform || '')}" /></div>
-        <div class="field"><label>Difficulty</label><input name="difficulty" maxlength="40" value="${esc(p?.difficulty || '')}" /></div>
-      </div>
-      <div class="field"><label>Content (Markdown)</label><textarea name="content" rows="18">${esc(content)}</textarea></div>
-      <div class="field check"><input id="adm-pub" type="checkbox" name="published" ${p?.published !== false ? 'checked' : ''} />
-        <label for="adm-pub">Published (unchecked = draft, hidden from visitors)</label></div>
-      <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
-        <button class="btn" type="submit">Save</button>
-        <button class="btn ghost" type="button" data-cancel>Cancel</button>
-        <span class="err" role="status"></span>
-      </div>
-    </form>`;
-  ed.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const saveBtn = drawer.footer.querySelector('[data-save]');
+  drawer.footer.querySelector('[data-cancel]').addEventListener('click', () => drawer.close());
+  saveBtn.addEventListener('click', () => saveWriteup());
+  form.addEventListener('submit', (e) => { e.preventDefault(); saveWriteup(); });
 
-  const form = ed.querySelector('form');
-  const msg = ed.querySelector('.err');
-  ed.querySelector('[data-cancel]').addEventListener('click', () => { ed.hidden = true; ed.innerHTML = ''; });
+  function invalid(field, msg) {
+    err.textContent = msg;
+    field.setAttribute('aria-invalid', 'true');
+    field.focus();
+    field.addEventListener('input', () => field.removeAttribute('aria-invalid'), { once: true });
+  }
 
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const f = form.elements;
+  async function saveWriteup() {
+    err.textContent = '';
     const slug = f.slug.value.trim().toLowerCase();
-    const list = (s) => s.split(',').map((x) => x.trim()).filter(Boolean);
+    const title = f.title.value.trim();
+    if (!title) return invalid(f.title, 'Title is required.');
+    if (!SLUG_RE.test(slug)) return invalid(f.slug, 'Slug must be 1–80 lowercase letters, digits or dashes.');
+    if (!f.date.value) return invalid(f.date, 'Pick a date.');
 
-    if (!/^[a-z0-9-]{1,80}$/.test(slug)) { msg.textContent = 'Slug: lowercase letters, digits and dashes only.'; return; }
-    if (!f.title.value.trim()) { msg.textContent = 'Title is required.'; return; }
-    if (isNew && !confirm(`Create post "${slug}"? If a DB post with this slug exists it will be overwritten.`)) return;
+    if (isNew && state.posts[slug]) {
+      const ok = await confirmDialog({ title: 'Overwrite existing post?', message: `A database post already uses /w/${slug}. Saving will replace it.`, confirmText: 'Overwrite', danger: true });
+      if (!ok) return;
+    }
 
     const meta = {
-      title: f.title.value.trim().slice(0, 200),
+      title: title.slice(0, 200),
       date: f.date.value,
       excerpt: f.excerpt.value.trim().slice(0, 500),
       published: f.published.checked,
       updatedAt: Date.now(),
     };
-    const tags = list(f.tags.value);
-    const mitre = list(f.mitre.value);
+    const tags = toList(f.tags.value);
+    const mitre = toList(f.mitre.value);
     if (tags.length) meta.tags = tags;
     if (mitre.length) meta.mitre = mitre;
-    if (f.platform.value.trim()) meta.platform = f.platform.value.trim();
-    if (f.difficulty.value.trim()) meta.difficulty = f.difficulty.value.trim();
+    if (f.platform.value.trim()) meta.platform = f.platform.value.trim().slice(0, 80);
+    if (f.difficulty.value.trim()) meta.difficulty = f.difficulty.value.trim().slice(0, 40);
 
-    const btn = form.querySelector('button[type=submit]');
-    btn.disabled = true;
-    msg.textContent = 'Saving…';
+    saveBtn.disabled = true;
+    saveBtn.classList.add('busy');
     try {
-      await writeData(`postContent/${slug}`, f.content.value); // content first…
-      await writeData(`posts/${slug}`, meta);                   // …then make it visible
+      await writeData(`postContent/${slug}`, content.value); // content first…
+      await writeData(`posts/${slug}`, meta);                 // …then make it visible
       invalidateWriteups();
-      dashboard(mount);
-    } catch (ex) {
-      msg.textContent = `Save failed: ${ex.message}`;
-      btn.disabled = false;
+      toast(`${meta.published ? 'Published' : 'Saved draft'}: ${meta.title}`, 'success');
+      await drawer.close(true);
+      loadData(mount, { quiet: true });
+    } catch (e) {
+      const msg = fbError(e);
+      err.textContent = msg;
+      toast(`Save failed — ${msg}`, 'error');
+      saveBtn.disabled = false;
+      saveBtn.classList.remove('busy');
     }
+  }
+}
+
+async function deleteWriteup(mount, row) {
+  const ok = await confirmDialog({
+    title: 'Delete write-up?',
+    message: `"${row.title}" (/w/${row.slug}) will be removed from the database. This can't be undone.`,
+    confirmText: 'Delete',
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    await removeData(`posts/${row.slug}`);       // hide first…
+    await removeData(`postContent/${row.slug}`); // …then drop content
+    invalidateWriteups();
+    toast(`Deleted: ${row.title}`, 'success');
+    loadData(mount, { quiet: true });
+  } catch (e) {
+    toast(`Delete failed — ${fbError(e)}`, 'error');
+  }
+}
+
+/* --------------------------------------------------- certificate editor -- */
+function openCertEditor(row) {
+  const isNew = !row;
+  const drawer = openDrawer({
+    title: isNew ? 'New certificate' : 'Edit certificate',
+    subtitle: CERTS_LIVE ? '' : 'Preview only — database sync arrives in Phase 3',
+    body: `
+      ${CERTS_LIVE ? '' : '<div class="adm-banner">Saving certificates is enabled in Phase 3. For now, edit <code>src/data/config.json</code>.</div>'}
+      <form class="aform" novalidate>
+        <div class="cert-preview"><img alt="" hidden /><span class="cert-ph" aria-hidden="true">?</span></div>
+        <div class="afield"><label for="c-name">Name</label><input id="c-name" name="name" maxlength="120" placeholder="CRTP — Certified Red Team Professional" /></div>
+        <div class="arow">
+          <div class="afield"><label for="c-issuer">Issuer</label><input id="c-issuer" name="issuer" maxlength="80" placeholder="Altered Security" /></div>
+          <div class="afield"><label for="c-date">Date</label><input id="c-date" name="date" maxlength="40" placeholder="Month YYYY" /></div>
+        </div>
+        <div class="afield"><label for="c-badge">Logo path</label><input id="c-badge" name="badge" placeholder="/assets/certs/…" spellcheck="false" /></div>
+        <div class="afield"><label for="c-verify">Verification URL</label><input id="c-verify" name="verify" type="url" placeholder="https://…" spellcheck="false" /></div>
+        <div class="afield"><label for="c-status">Status</label>
+          <select id="c-status" name="status"><option value="earned">Earned</option><option value="in-progress">In progress</option></select></div>
+      </form>`,
+    footer: FOOTER(isNew ? 'Create certificate' : 'Save changes', !CERTS_LIVE),
+  });
+
+  const form = drawer.body.querySelector('form');
+  const f = form.elements;
+  f.name.value = row?.name || '';
+  f.issuer.value = row?.issuer || '';
+  f.date.value = row?.date || '';
+  f.badge.value = row?.badge || '';
+  f.verify.value = row?.verify || '';
+  f.status.value = row?.status || 'earned';
+
+  const img = form.querySelector('.cert-preview img');
+  const ph = form.querySelector('.cert-preview .cert-ph');
+  const updateLogo = () => {
+    const u = safeUrl(f.badge.value);
+    img.hidden = !u;
+    ph.hidden = !!u;
+    if (u) img.src = u;
+  };
+  img.addEventListener('error', () => { img.hidden = true; ph.hidden = false; });
+  f.badge.addEventListener('input', updateLogo);
+  updateLogo();
+
+  drawer.footer.querySelector('[data-cancel]').addEventListener('click', () => drawer.close(true));
+  drawer.footer.querySelector('[data-save]').addEventListener('click', () => {
+    toast('Certificate sync is wired in Phase 3.', 'info');
   });
 }

@@ -26,16 +26,44 @@ jobs:
       - run: npm ci
       # For a project site (username.github.io/repo) the base path must match the repo name.
       # For a user site (username.github.io) leave BASE_PATH unset.
-      - run: npm run build
+      # Resolve Firebase web config into VITE_* env for the build.
+      # Accepts EITHER a single `FIREBASE` secret holding the JSON config object,
+      # OR five individual VITE_FIREBASE_* secrets (individual wins if set).
+      - name: Resolve Firebase config
         env:
-          BASE_PATH: ${{ vars.BASE_PATH }}
-          # Firebase web config — set these as repo Secrets
-          # (Settings → Secrets and variables → Actions → Secrets).
+          FIREBASE_JSON: ${{ secrets.FIREBASE }}
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
           VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
           VITE_FIREBASE_DATABASE_URL: ${{ secrets.VITE_FIREBASE_DATABASE_URL }}
           VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+        run: |
+          set -e
+          put() { printf '%s=%s\n' "$1" "$2" >> "$GITHUB_ENV"; }
+          if [ -n "$VITE_FIREBASE_API_KEY" ]; then
+            echo "Using individual VITE_FIREBASE_* secrets."
+            put VITE_FIREBASE_API_KEY      "$VITE_FIREBASE_API_KEY"
+            put VITE_FIREBASE_AUTH_DOMAIN  "$VITE_FIREBASE_AUTH_DOMAIN"
+            put VITE_FIREBASE_DATABASE_URL "$VITE_FIREBASE_DATABASE_URL"
+            put VITE_FIREBASE_PROJECT_ID   "$VITE_FIREBASE_PROJECT_ID"
+            put VITE_FIREBASE_APP_ID       "$VITE_FIREBASE_APP_ID"
+          elif [ -n "$FIREBASE_JSON" ]; then
+            echo "Parsing single FIREBASE JSON secret."
+            echo "$FIREBASE_JSON" | jq empty || { echo "::error::FIREBASE secret is not valid JSON"; exit 1; }
+            put VITE_FIREBASE_API_KEY      "$(printf '%s' "$FIREBASE_JSON" | jq -r '.apiKey // empty')"
+            put VITE_FIREBASE_AUTH_DOMAIN  "$(printf '%s' "$FIREBASE_JSON" | jq -r '.authDomain // empty')"
+            put VITE_FIREBASE_DATABASE_URL "$(printf '%s' "$FIREBASE_JSON" | jq -r '.databaseURL // empty')"
+            put VITE_FIREBASE_PROJECT_ID   "$(printf '%s' "$FIREBASE_JSON" | jq -r '.projectId // empty')"
+            put VITE_FIREBASE_APP_ID       "$(printf '%s' "$FIREBASE_JSON" | jq -r '.appId // empty')"
+            miss=$(printf '%s' "$FIREBASE_JSON" | jq -r '["apiKey","authDomain","databaseURL","projectId","appId"] - (keys) | join(", ")')
+            [ -n "$miss" ] && echo "::warning::FIREBASE JSON is missing keys: $miss (Firebase will stay disabled)"
+          else
+            echo "No Firebase secret set — building without Firebase (DB features disabled)."
+          fi
+
+      - run: npm run build
+        env:
+          BASE_PATH: ${{ vars.BASE_PATH }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

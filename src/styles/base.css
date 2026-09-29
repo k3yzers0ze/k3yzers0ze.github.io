@@ -133,3 +133,11 @@ main { position: relative; z-index: 1; display: block; }
   .petal, .stage-poly.spin, .stage-poly .ring-r, .avail i { display: none !important; }
   #boot { display: none !important; }
 }
+
+/* Low-power / reduced-motion: set on <body> by perf.js. Kills the animated scene
+   (petals + rotating polygon + pulse) to save battery/CPU; static gradients stay. */
+body.no-fx .petal,
+body.no-fx .stage-poly,
+body.no-fx .avail i { display: none !important; }
+body.no-fx .stage-poly.spin,
+body.no-fx .stage-poly .ring-r { animation: none !important; }

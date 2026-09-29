@@ -2,12 +2,10 @@
 import config from '../data/config.json';
 import skills from '../data/skills.json';
 import platforms from '../data/platforms.json';
-import { writeups, getWriteup } from './writeups.js';
+import { writeups, getWriteup, getRenderedContent } from './writeups.js';
 import { SkillGrid, PlatformGrid, CertGrid, ProjectGrid } from './components/CardGrid.js';
 import { Terminal } from './components/Terminal.js';
 import { esc, fmtDate } from './util.js';
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
 
 // View HTML partials, bundled at build time.
 const partials = import.meta.glob('../views/*.html', { query: '?raw', import: 'default', eager: true });
@@ -205,13 +203,13 @@ const routes = {
     input.focus();
   },
 
-  writeup: (slug) => {
+  writeup: async (slug) => {
     const w = getWriteup(slug);
     if (!w) return routes.notfound();
     setMeta({ title: w.title, description: w.summary, page: 'writeup' });
     app().innerHTML = view('writeup-detail');
 
-    const html = DOMPurify.sanitize(marked.parse(w.body));
+    // Render header immediately; body streams in from cache/DB/bundled markdown.
     app().querySelector('#wu-article').innerHTML = `
       <a href="#/writeups" class="backlink">← back to writeups</a>
       <h1 style="font-family:var(--display);font-size:clamp(1.8rem,5vw,3.4rem);line-height:1;text-transform:uppercase">${esc(w.title)}</h1>
@@ -223,9 +221,17 @@ const routes = {
       <p class="article-lead" style="margin-top:1rem">${esc(w.summary)}</p>
       ${w.mitre.length ? `<div style="margin-top:1.2rem"><p style="font-family:var(--mono);font-size:.58rem;letter-spacing:.22em;color:var(--cyber);text-transform:uppercase;margin-bottom:.5rem">// mitre att&ck</p><div class="tags">${w.mitre.map((m) => `<span class="chip-key">${esc(m)}</span>`).join('')}</div></div>` : ''}
       ${w.tags.length ? `<div class="tags" style="margin-top:.8rem">${w.tags.map((t) => `<span class="chip">${esc(t)}</span>`).join('')}</div>` : ''}
-      <div class="article-body">${html}</div>`;
+      <div class="article-body" id="wu-body"></div>`;
 
     initReadbar();
+    try {
+      const html = await getRenderedContent(w);
+      const bodyEl = app().querySelector('#wu-body');
+      if (bodyEl) { bodyEl.innerHTML = html; initReadbar(); }
+    } catch {
+      const bodyEl = app().querySelector('#wu-body');
+      if (bodyEl) bodyEl.innerHTML = '<p class="cm-note">Could not load this write-up.</p>';
+    }
   },
 
   contact: () => {

@@ -7,6 +7,9 @@ import '../styles/views.css';
 import config from '../data/config.json';
 import { esc } from './util.js';
 import { startRouter } from './router.js';
+import { initPerf } from './perf.js';
+import { countVisit } from './analytics.js';
+import { hydrateAdminFromCache } from './auth.js';
 
 /* ---------------------------------------------------------------- NAV ------ */
 function buildNav() {
@@ -85,6 +88,9 @@ function handleBoot() {
 
 /* --------------------------------------------------------------- INIT ------ */
 handleBoot();
+initPerf();       // low-power / reduced-motion FX handling (3.3)
 buildNav();
 buildFooter();
 startRouter();
+countVisit();            // one count per session via gp_seen (3.2)
+hydrateAdminFromCache(); // SDK-free admin hint (3.2); full auth deferred to admin panel

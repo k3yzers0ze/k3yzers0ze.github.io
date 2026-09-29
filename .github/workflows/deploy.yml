@@ -48,15 +48,23 @@ jobs:
             put VITE_FIREBASE_PROJECT_ID   "$VITE_FIREBASE_PROJECT_ID"
             put VITE_FIREBASE_APP_ID       "$VITE_FIREBASE_APP_ID"
           elif [ -n "$FIREBASE_JSON" ]; then
-            echo "Parsing single FIREBASE JSON secret."
-            echo "$FIREBASE_JSON" | jq empty || { echo "::error::FIREBASE secret is not valid JSON"; exit 1; }
-            put VITE_FIREBASE_API_KEY      "$(printf '%s' "$FIREBASE_JSON" | jq -r '.apiKey // empty')"
-            put VITE_FIREBASE_AUTH_DOMAIN  "$(printf '%s' "$FIREBASE_JSON" | jq -r '.authDomain // empty')"
-            put VITE_FIREBASE_DATABASE_URL "$(printf '%s' "$FIREBASE_JSON" | jq -r '.databaseURL // empty')"
-            put VITE_FIREBASE_PROJECT_ID   "$(printf '%s' "$FIREBASE_JSON" | jq -r '.projectId // empty')"
-            put VITE_FIREBASE_APP_ID       "$(printf '%s' "$FIREBASE_JSON" | jq -r '.appId // empty')"
-            miss=$(printf '%s' "$FIREBASE_JSON" | jq -r '["apiKey","authDomain","databaseURL","projectId","appId"] - (keys) | join(", ")')
-            [ -n "$miss" ] && echo "::warning::FIREBASE JSON is missing keys: $miss (Firebase will stay disabled)"
+            echo "Normalizing FIREBASE secret (accepts JSON or a JS config snippet)."
+            norm=$(printf '%s' "$FIREBASE_JSON" | tr '\n' ' ')
+            # isolate the outermost { ... } (handles `const firebaseConfig = {..};` wrappers)
+            case "$norm" in *"{"*) norm="{${norm#*\{}"; norm="${norm%\}*}}";; esac
+            # single->double quotes, quote unquoted keys, drop trailing commas
+            norm=$(printf '%s' "$norm" | sed -E "s/'/\"/g; s/([{,])[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*:/\1\"\2\":/g; s/,[[:space:]]*}/}/g")
+            if printf '%s' "$norm" | jq empty 2>/dev/null; then
+              put VITE_FIREBASE_API_KEY      "$(printf '%s' "$norm" | jq -r '.apiKey // empty')"
+              put VITE_FIREBASE_AUTH_DOMAIN  "$(printf '%s' "$norm" | jq -r '.authDomain // empty')"
+              put VITE_FIREBASE_DATABASE_URL "$(printf '%s' "$norm" | jq -r '.databaseURL // empty')"
+              put VITE_FIREBASE_PROJECT_ID   "$(printf '%s' "$norm" | jq -r '.projectId // empty')"
+              put VITE_FIREBASE_APP_ID       "$(printf '%s' "$norm" | jq -r '.appId // empty')"
+              miss=$(printf '%s' "$norm" | jq -r '(["apiKey","authDomain","databaseURL","projectId","appId"] - (keys)) | join(", ")')
+              if [ -n "$miss" ]; then echo "::warning::FIREBASE config missing keys: $miss (Firebase stays disabled)"; else echo "Firebase config parsed OK."; fi
+            else
+              echo "::warning::Could not parse FIREBASE secret; building WITHOUT Firebase. Set it to your firebaseConfig JSON object."
+            fi
           else
             echo "No Firebase secret set — building without Firebase (DB features disabled)."
           fi

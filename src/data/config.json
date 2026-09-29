@@ -6,11 +6,15 @@
   "description": "Offensive security student based in Rabat, Morocco. Red teaming, Active Directory exploitation and web application security — with a full write-up for everything I take apart.",
   "email": "t.aymen404@proton.me",
   "location": "Rabat, Morocco",
-  "profileImage": "/assets/profile.svg",
+  "profileImage": "/assets/profile.jpeg",
+  "hero": {
+    "eyebrow": "Welcome to my portfolio"
+  },
   "socials": [
-    { "label": "GitHub", "href": "https://github.com/" },
-    { "label": "LinkedIn", "href": "https://www.linkedin.com/" },
-    { "label": "Hack The Box", "href": "https://app.hackthebox.com/" }
+    { "label": "GitHub", "handle": "k3yzers0ze", "href": "https://github.com/k3yzers0ze/", "icon": "/assets/icons/github.svg" },
+    { "label": "LinkedIn", "handle": "atibtani", "href": "https://www.linkedin.com/in/atibtani", "icon": "/assets/icons/linkedin.svg" },
+    { "label": "Hack The Box", "handle": "#2083802", "href": "https://app.hackthebox.com/users/2083802", "icon": "/assets/certs/logo-htb.svg" },
+    { "label": "Email", "handle": "t.aymen404@proton.me", "href": "mailto:t.aymen404@proton.me", "icon": "/assets/icons/mail.svg" }
   ],
   "nav": [
     { "id": "about", "label": "about", "jp": "経歴" },
@@ -28,7 +32,7 @@
       "Active Directory attack paths in multi-domain forests",
       "Adversary simulation mapped to MITRE ATT&CK",
       "Chained web exploitation — auth bypass to RCE",
-      "CRTL, CRTE and BSCP in progress"
+      "CPTS in progress"
     ],
     "profile": {
       "location": "Rabat, Morocco",
@@ -42,12 +46,7 @@
     ]
   },
   "certs": [
-    { "name": "TODO: Certification Name", "issuer": "Hack The Box", "date": "TODO: Month YYYY", "badge": "/assets/certs/htb.svg", "verify": "", "status": "earned" },
-    { "name": "TODO: Certification Name", "issuer": "Altered Security", "date": "TODO: Month YYYY", "badge": "/assets/certs/altered.svg", "verify": "", "status": "earned" },
-    { "name": "TODO: Certification Name", "issuer": "webverse Labs", "date": "TODO: Month YYYY", "badge": "/assets/certs/webverse.svg", "verify": "", "status": "earned" },
-    { "name": "CRTL — Certified Red Team Lead", "issuer": "Zero-Point Security", "date": "In progress", "badge": "/assets/certs/crtl.svg", "verify": "", "status": "in-progress" },
-    { "name": "CRTE — Certified Red Team Expert", "issuer": "Altered Security", "date": "In progress", "badge": "/assets/certs/crte.svg", "verify": "", "status": "in-progress" },
-    { "name": "BSCP — Burp Suite Certified Practitioner", "issuer": "PortSwigger", "date": "In progress", "badge": "/assets/certs/bscp.svg", "verify": "", "status": "in-progress" }
+    { "name": "CRTP — Certified Red Team Professional", "issuer": "Altered Security", "date": "", "badge": "/assets/certs/Altered-Security-Logo.avif", "verify": "", "status": "earned" }
   ],
   "projects": [
     {

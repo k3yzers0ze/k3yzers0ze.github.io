@@ -1,14 +1,22 @@
 {
   "site": {
     "hero": {
+      "eyebrow": "Welcome to my portfolio",
       "name": "Tibtani Ahmed Aymen",
       "role": "Offensive Security Student",
       "header": "I'm an offensive security Student based in Rabat, Morocco. The job is easy to describe and hard to do: get in the way a real attacker would, prove what it costs, then hand over the exact path so it can be closed for good.",
-      "location": "Rabat, Morocco"
+      "location": "Rabat, Morocco",
+      "profileImage": "/assets/profile.jpeg"
     },
     "contact": {
       "email": "t.aymen404@proton.me",
-      "available": true
+      "available": true,
+      "socials": {
+        "github": "https://github.com/k3yzers0ze/",
+        "linkedin": "https://www.linkedin.com/in/atibtani",
+        "hackthebox": "https://app.hackthebox.com/users/2083802",
+        "email": "mailto:t.aymen404@proton.me"
+      }
     }
   },
 

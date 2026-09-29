@@ -3,18 +3,21 @@
     "name": "Hack The Box",
     "rank": "Pro Hacker Rank",
     "description": "Advanced exploitation and adversary simulation across hundreds of realistic machines and Pro Labs.",
-    "href": "https://app.hackthebox.com/"
+    "href": "https://app.hackthebox.com/users/2083802",
+    "logo": "/assets/certs/logo-htb.svg"
   },
   {
     "name": "TryHackMe",
     "rank": "Full Learning Path Completed",
     "description": "Pre-security, junior penetration testing, web fundamentals, network support and Advent of Cyber.",
-    "href": "https://tryhackme.com/"
+    "href": "https://tryhackme.com/p/glockontbina",
+    "logo": "/assets/certs/tryhackme_logo_full.svg"
   },
   {
-    "name": "Offsec Labs",
-    "rank": "Active Lab Practitioner",
-    "description": "Ongoing practice on Offensive Security's lab environment, aligned to advanced red team and penetration testing methodology.",
-    "href": "https://www.offsec.com/labs/"
+    "name": "Webverselabs",
+    "rank": "Advanced Web Exploitation",
+    "description": "Hands-on advanced web exploitation — chaining vulnerabilities into real attack paths: authentication and session bypass, injection, SSRF, deserialization and business-logic abuse.",
+    "href": "https://dashboard.webverselabs-pro.com/profile",
+    "logo": "/assets/certs/webverse_256.webp"
   }
 ]

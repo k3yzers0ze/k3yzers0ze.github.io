@@ -82,6 +82,21 @@ section.sec { padding: clamp(2.6rem,5vw,4.2rem) 0; position: relative; }
 .plat h3 { font-family: var(--display); font-size: 1.3rem; text-transform: uppercase; letter-spacing: .02em; }
 .plat .rank { font-family: var(--mono); font-size: .58rem; letter-spacing: .08em; padding: .28rem .5rem; border: 1px solid color-mix(in oklab, var(--scene-key) 40%, transparent); background: color-mix(in oklab, var(--scene-key) 12%, transparent); color: var(--scene-key); white-space: nowrap; }
 .plat p { font-size: .86rem; color: #b4bcd2; }
+.plat-logo { height: 44px; display: flex; align-items: center; margin-bottom: 1rem; }
+.plat-logo img { max-height: 100%; max-width: 160px; width: auto; object-fit: contain; filter: drop-shadow(0 2px 8px rgba(0,0,0,.5)); }
+
+/* ══════════ SOCIAL GRID ══════════ */
+.social-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1rem; }
+.social { display: flex; align-items: center; gap: 1rem; padding: 1.1rem 1.2rem; }
+.social-ico { width: 46px; height: 46px; flex: none; display: grid; place-items: center; border: 1px solid var(--line2); background: rgba(8,8,18,.6); transition: border-color .25s, box-shadow .25s; }
+.social-ico img { width: 26px; height: 26px; object-fit: contain; }
+.social-txt { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.social-txt b { font-family: var(--display); font-size: 1.05rem; letter-spacing: .03em; text-transform: uppercase; font-weight: 400; }
+.social-txt s { text-decoration: none; font-family: var(--mono); font-size: .62rem; color: var(--dim); letter-spacing: .06em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.social-go { font-family: var(--mono); color: var(--dim); transition: transform .25s, color .25s; }
+.social:hover .social-ico { border-color: var(--scene-key); box-shadow: 0 0 18px -4px var(--scene-key); }
+.social:hover .social-go { color: var(--scene-key); transform: translateX(4px); }
+.social:hover .social-txt s { color: var(--muted); }
 
 /* ══════════ PROJECT CARDS ══════════ */
 .proj { padding: 1.5rem; display: flex; flex-direction: column; border: 2px solid #1c1c34; }

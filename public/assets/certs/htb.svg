@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="HTB badge placeholder">
-  <rect width="128" height="128" rx="12" fill="#0b0b18"/>
-  <circle cx="64" cy="54" r="30" fill="none" stroke="#ff2e88" stroke-width="3" stroke-opacity="0.55"/>
-  <path d="M50 84l-6 26 20-10 20 10-6-26" fill="none" stroke="#22d3ee" stroke-width="3" stroke-opacity="0.6"/>
-  <text x="64" y="60" text-anchor="middle" fill="#e9edf8" font-family="Impact,Arial,sans-serif" font-size="20" font-weight="700">HTB</text>
-</svg>

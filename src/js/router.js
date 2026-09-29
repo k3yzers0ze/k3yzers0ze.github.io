@@ -3,9 +3,9 @@ import config from '../data/config.json';
 import skills from '../data/skills.json';
 import platforms from '../data/platforms.json';
 import { writeups, loadWriteups, findWriteup, getRenderedContent } from './writeups.js';
-import { SkillGrid, PlatformGrid, CertGrid, ProjectGrid } from './components/CardGrid.js';
+import { SkillGrid, PlatformGrid, CertGrid, ProjectGrid, SocialGrid } from './components/CardGrid.js';
 import { Terminal } from './components/Terminal.js';
-import { esc, fmtDate } from './util.js';
+import { esc, fmtDate, safeUrl } from './util.js';
 import { highlightWithin } from './highlight.js';
 import { renderAdmin } from './admin.js';
 
@@ -42,7 +42,9 @@ function setActiveNav(page) {
 /* ------------------------------------------------------------------ HOME --- */
 function homeView() {
   const a = config.about;
-  const certPills = ['Hack The Box', 'Altered Security', 'webverse Labs', 'CRTL', 'CRTE', 'BSCP'];
+  // Pills reflect real data: cert short names (e.g. "CRTP") + platforms.
+  const certPills = [...config.certs.map((c) => c.name.split(' — ')[0]), ...platforms.map((p) => p.name)];
+  const photo = safeUrl(config.profileImage);
   const stats = [
     { b: '3+', s: 'years offensive' },
     { b: 'AD', s: 'multi-domain forests' },
@@ -57,16 +59,26 @@ function homeView() {
 
   return `
   <section class="landing">
-    <div class="landing-in wrap">
-      <span class="hero-tag">offensive security · rabat, morocco</span>
-      <h1 class="hero-name"><span class="l1">TIBTANI</span><span class="l2">AYMEN</span></h1>
-      <p class="hero-jp">オフェンシブ・セキュリティ</p>
-      <p class="hero-bio">${esc(a.header)}</p>
-      <div class="certrow">${certPills.map((c) => `<span class="cpill">${esc(c)}</span>`).join('')}</div>
-      <div class="hero-cta">
-        <a href="#/writeups" class="btn">Read the writeups →</a>
-        <a href="#/contact" class="btn ghost">Open for engagements</a>
+    <div class="landing-in wrap hero-grid">
+      <div class="hero-copy">
+        <span class="hero-tag">${esc(config.hero?.eyebrow || 'Welcome to my portfolio')}</span>
+        <h1 class="hero-name"><span class="l1">TIBTANI</span><span class="l2">AYMEN</span></h1>
+        <p class="hero-jp">オフェンシブ・セキュリティ · ${esc(config.location)}</p>
+        <p class="hero-bio">${esc(a.header)}</p>
+        <div class="certrow">${certPills.map((c) => `<span class="cpill">${esc(c)}</span>`).join('')}</div>
+        <div class="hero-cta">
+          <a href="#/writeups" class="btn">Read the writeups →</a>
+          <a href="#/contact" class="btn ghost">Open for engagements</a>
+        </div>
       </div>
+      ${
+        photo
+          ? `<figure class="hero-photo panel">
+        <img src="${esc(photo)}" alt="Portrait of ${esc(config.name)}" width="440" height="560" fetchpriority="high" decoding="async" />
+        <figcaption><span class="hp-dot"></span>${esc(config.role)}</figcaption>
+      </figure>`
+          : ''
+      }
     </div>
     <div class="scrollcue">SCROLL<i></i></div>
   </section>
@@ -139,7 +151,7 @@ const routes = {
       `<p class="about-lead">${esc(a.header)}</p><p>${esc(a.bio)}</p>`;
     app().querySelector('#about-focus').innerHTML = a.focus.map((f) => `<li>${esc(f)}</li>`).join('');
     app().querySelector('#portrait').innerHTML =
-      `<img src="${esc(config.profileImage)}" alt="Portrait of ${esc(config.name)}" width="480" height="640" loading="lazy" decoding="async" /><figcaption>${esc(a.profile.location)} · ${esc(config.role)}</figcaption>`;
+      `<img src="${esc(safeUrl(config.profileImage))}" alt="Portrait of ${esc(config.name)}" width="480" height="640" loading="lazy" decoding="async" /><figcaption>${esc(a.profile.location)} · ${esc(config.role)}</figcaption>`;
     app().querySelector('#factlist').innerHTML = `
       <div class="fact"><b>Location</b><span>${esc(a.profile.location)}</span></div>
       <div class="fact"><b>Email</b><span><a href="mailto:${esc(a.profile.email)}">${esc(a.profile.email)}</a></span></div>
@@ -289,6 +301,7 @@ const routes = {
       .join('');
     app().querySelector('#mail-btn').setAttribute('href', `mailto:${config.email}`);
     app().querySelector('#mail-btn').textContent = `✉ ${config.email}`;
+    app().querySelector('#socials').innerHTML = SocialGrid(config.socials);
     app().querySelector('#terminal').innerHTML = Terminal({
       title: '~/contact',
       lines: [

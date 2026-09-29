@@ -8,6 +8,16 @@ export function esc(s) {
   );
 }
 
+/**
+ * Allow only https:, mailto: and site-relative URLs in href/src.
+ * esc() prevents attribute breakout but not `javascript:` URLs — this does.
+ */
+export function safeUrl(u) {
+  const s = String(u || '').trim();
+  if (/^(https:\/\/|mailto:)/i.test(s) || (s.startsWith('/') && !s.startsWith('//'))) return s;
+  return '';
+}
+
 /** Format an ISO/Date into "Sep 1, 2026". */
 export function fmtDate(d) {
   try {

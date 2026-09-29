@@ -5,7 +5,7 @@ import '../styles/components.css';
 import '../styles/views.css';
 
 import config from '../data/config.json';
-import { esc } from './util.js';
+import { esc, safeUrl } from './util.js';
 import { startRouter } from './router.js';
 import { initPerf } from './perf.js';
 import { countVisit } from './analytics.js';
@@ -63,12 +63,17 @@ function buildNav() {
 function buildFooter() {
   const year = new Date().getFullYear();
   const links = config.socials
-    .map((s) => `<a href="${esc(s.href)}" target="_blank" rel="noopener noreferrer">${esc(s.label)}</a>`)
+    .map((s) => {
+      const href = safeUrl(s.href);
+      if (!href) return '';
+      const ext = href.startsWith('https://') ? ' target="_blank" rel="noopener noreferrer"' : '';
+      return `<a href="${esc(href)}"${ext}>${esc(s.label)}</a>`;
+    })
     .join('');
   document.getElementById('foot').innerHTML = `
     <div class="foot-in">
       <p>© ${year} ${esc(config.name)} · <span>RABAT, MA</span></p>
-      <div class="foot-links">${links}<a href="mailto:${esc(config.email)}">email</a></div>
+      <div class="foot-links">${links}</div>
     </div>`;
 }
 

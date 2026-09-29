@@ -1,6 +1,6 @@
 // Reusable grid renderers for skills, platforms, certs and projects.
 // Each returns an HTML string; the router injects it into a container.
-import { esc } from '../util.js';
+import { esc, safeUrl } from '../util.js';
 
 const code = (s) =>
   s
@@ -28,13 +28,32 @@ export function SkillGrid(skills, limit) {
 
 export function PlatformGrid(platforms) {
   return `<div class="grid-3">${platforms
-    .map(
-      (p) => `<div class="plat panel hov">
+    .map((p) => {
+      const logo = safeUrl(p.logo);
+      const href = safeUrl(p.href);
+      return `<div class="plat panel hov">
+        ${logo ? `<div class="plat-logo"><img src="${esc(logo)}" alt="${esc(p.name)} logo" loading="lazy" decoding="async" /></div>` : ''}
         <div class="plat-top"><h3>${esc(p.name)}</h3><span class="rank">${esc(p.rank)}</span></div>
         <p>${esc(p.description)}</p>
-        ${p.href ? `<a href="${esc(p.href)}" target="_blank" rel="noopener noreferrer" class="chip" style="margin-top:1rem;align-self:flex-start">view profile →</a>` : ''}
-      </div>`
-    )
+        ${href ? `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer" class="chip" style="margin-top:1rem;align-self:flex-start">view profile →</a>` : ''}
+      </div>`;
+    })
+    .join('')}</div>`;
+}
+
+export function SocialGrid(socials) {
+  return `<div class="social-grid">${socials
+    .map((s) => {
+      const href = safeUrl(s.href);
+      if (!href) return '';
+      const icon = safeUrl(s.icon);
+      const external = href.startsWith('https://');
+      return `<a class="social panel hov" href="${esc(href)}"${external ? ' target="_blank" rel="noopener noreferrer"' : ''}>
+        <span class="social-ico">${icon ? `<img src="${esc(icon)}" alt="" width="28" height="28" loading="lazy" decoding="async" />` : ''}</span>
+        <span class="social-txt"><b>${esc(s.label)}</b><s>${esc(s.handle || '')}</s></span>
+        <span class="social-go" aria-hidden="true">→</span>
+      </a>`;
+    })
     .join('')}</div>`;
 }
 
@@ -42,13 +61,15 @@ export function CertGrid(certs) {
   return `<div class="grid-3">${certs
     .map((c) => {
       const prog = c.status === 'in-progress';
+      const badge = safeUrl(c.badge);
+      const verify = safeUrl(c.verify);
       return `<div class="cert panel hov">
-        <div class="cert-badge"><img src="${esc(c.badge)}" alt="${esc(c.name)} badge" width="66" height="66" loading="lazy" /></div>
+        ${badge ? `<div class="cert-badge"><img src="${esc(badge)}" alt="${esc(c.issuer)} logo" width="66" height="66" loading="lazy" decoding="async" /></div>` : ''}
         <div style="margin-bottom:.5rem">${prog ? '<span class="chip">in progress</span>' : '<span class="chip-key">earned</span>'}</div>
         <h3>${esc(c.name)}</h3>
         <p class="iss">${esc(c.issuer)}</p>
-        <p class="date">${esc(c.date)}</p>
-        ${c.verify ? `<a href="${esc(c.verify)}" target="_blank" rel="noopener noreferrer" class="chip" style="margin-top:.6rem;align-self:flex-start">verify →</a>` : ''}
+        ${c.date ? `<p class="date">${esc(c.date)}</p>` : ''}
+        ${verify ? `<a href="${esc(verify)}" target="_blank" rel="noopener noreferrer" class="chip" style="margin-top:.6rem;align-self:flex-start">verify →</a>` : ''}
       </div>`;
     })
     .join('')}</div>`;

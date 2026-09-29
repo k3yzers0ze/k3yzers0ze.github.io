@@ -5,41 +5,46 @@
 
     "site": {
       ".read": true,
-      ".write": "auth != null && auth.token.email == 't.aymen404@proton.me' && auth.token.email_verified == true",
+      ".write": "auth != null && auth.uid === 'lEsVOWrpNQPh06Ii7hMqXgap63J2'",
       "hero": { ".validate": "newData.hasChildren()" },
       "contact": { ".validate": "newData.hasChildren()" }
     },
 
     "posts": {
-      ".read": true,
-      ".write": "auth != null && auth.token.email == 't.aymen404@proton.me' && auth.token.email_verified == true",
+      ".indexOn": ["published"],
+      ".read": "(auth != null && auth.uid === 'lEsVOWrpNQPh06Ii7hMqXgap63J2') || (query.orderByChild === 'published' && query.equalTo === true)",
+      ".write": "auth != null && auth.uid === 'lEsVOWrpNQPh06Ii7hMqXgap63J2'",
       "$slug": {
-        ".validate": "newData.hasChildren(['title','date','published'])",
-        "title":     { ".validate": "newData.isString() && newData.val().length <= 200" },
-        "date":      { ".validate": "newData.isString() && newData.val().length <= 40" },
-        "excerpt":   { ".validate": "newData.isString() && newData.val().length <= 500" },
-        "tags":      { ".validate": "newData.hasChildren() || newData.isString()" },
-        "published": { ".validate": "newData.isBoolean()" },
-        "$other":    { ".validate": true }
+        ".validate": "$slug.matches(/^[a-z0-9-]{1,80}$/) && newData.hasChildren(['title','date','published'])",
+        "title":      { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 200" },
+        "date":       { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "excerpt":    { ".validate": "newData.isString() && newData.val().length <= 500" },
+        "tags":       { ".validate": "newData.hasChildren()" },
+        "mitre":      { ".validate": "newData.hasChildren()" },
+        "platform":   { ".validate": "newData.isString() && newData.val().length <= 80" },
+        "difficulty": { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "published":  { ".validate": "newData.isBoolean()" },
+        "updatedAt":  { ".validate": "newData.isNumber()" },
+        "$other":     { ".validate": false }
       }
     },
 
     "postContent": {
-      ".read": true,
-      ".write": "auth != null && auth.token.email == 't.aymen404@proton.me' && auth.token.email_verified == true",
+      ".write": "auth != null && auth.uid === 'lEsVOWrpNQPh06Ii7hMqXgap63J2'",
       "$slug": {
+        ".read": "(auth != null && auth.uid === 'lEsVOWrpNQPh06Ii7hMqXgap63J2') || root.child('posts').child($slug).child('published').val() === true",
         ".validate": "newData.isString() && newData.val().length <= 200000"
       }
     },
 
     "stats": {
       ".read": true,
-      ".write": "auth != null && auth.token.email == 't.aymen404@proton.me' && auth.token.email_verified == true"
+      ".write": "auth != null && auth.uid === 'lEsVOWrpNQPh06Ii7hMqXgap63J2'"
     },
 
     "visitors": {
-      ".read": "auth != null && auth.token.email == 't.aymen404@proton.me'",
-      ".write": "auth != null && auth.token.email == 't.aymen404@proton.me' && auth.token.email_verified == true"
+      ".read": "auth != null && auth.uid === 'lEsVOWrpNQPh06Ii7hMqXgap63J2'",
+      ".write": "auth != null && auth.uid === 'lEsVOWrpNQPh06Ii7hMqXgap63J2'"
     }
   }
 }

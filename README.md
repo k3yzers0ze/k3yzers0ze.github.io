@@ -57,18 +57,28 @@ public/assets/             # profile.svg, certs/*.svg, icons/*.svg, og-default.p
 
 ## Firebase backend (Phase 2)
 
-Model: **admin-only writes, public reads.** Only the admin account
-(`t.aymen404@proton.me`) can write; everyone else can read published data. The app
-runs fine with Firebase **unconfigured** (`firebaseEnabled` stays false).
+Model: **UID-gated admin writes, public reads of published content only.** The admin is
+identified by Firebase **UID** (`lEsVOWrpNQPh06Ii7hMqXgap63J2`), not by email — the strongest
+check, and it doesn't depend on email verification. The app runs fine with Firebase
+**unconfigured** (`firebaseEnabled` stays false).
 
 ### Data model (`database.rules.json`, seed in `src/data/seed.firebase.json`)
 | Path | Read | Write | Purpose |
 | --- | --- | --- | --- |
 | `site/` | public | admin | hero text, contact, global settings |
-| `posts/<slug>` | public | admin | write-up metadata (title, date, tags, excerpt, `published`) — light for list queries |
-| `postContent/<slug>` | public | admin | the Markdown/HTML body, kept separate from metadata |
+| `posts/<slug>` | public **only via** `orderByChild('published').equalTo(true)`; admin: all | admin | write-up metadata (title, date, tags, excerpt, `published`) |
+| `postContent/<slug>` | public **only if** that post is published; admin: all | admin | the Markdown body, kept separate from metadata |
 | `stats/` | public | admin | aggregated views (`total`, `by_day/week/month`) |
 | `visitors/` | admin only | admin | raw anonymized logs (kept private) |
+
+**Drafts stay private:** unpublished posts are never returned to visitors — a plain read of
+`/posts.json` is denied; only the published-only query is allowed. Unknown fields on a post are
+rejected, and slugs must match `^[a-z0-9-]{1,80}$`.
+
+### Admin panel
+Open **https://k3yzers0ze.github.io/#/admin** and sign in with your admin email/password.
+You can create, edit, publish/unpublish and delete posts; editing a bundled Markdown post saves a
+DB copy that overrides it. KPIs and a posts-by-tag chart are on the dashboard.
 
 > **Security note (analytics):** with admin-only writes, the site can't self-record
 > page views from the browser (that would need public writes = spoofable/floodable, or a
@@ -80,19 +90,29 @@ runs fine with Firebase **unconfigured** (`firebaseEnabled` stays false).
 1. **Firebase Console → Add project.**
 2. **Build → Realtime Database → Create database** → region **`europe-west1`** → start in **locked mode**.
 3. **Build → Authentication → Sign-in method → enable Email/Password only.**
-4. **Authentication → Users → Add user** → your admin email `t.aymen404@proton.me` + a strong password.
-   (Email/Password users are auto `email_verified: true`, which the rules require.)
+4. **Authentication → Users → Add user** → your admin email + a strong password. Copy the
+   user's **UID** into `database.rules.json` and `ADMIN_UID` in `src/js/auth.js` (already set).
 5. **Realtime Database → Rules** → paste the contents of [`database.rules.json`](database.rules.json) → **Publish**.
+   Re-paste whenever that file changes — the console is the source of truth.
 6. **(Optional) Import seed:** Realtime Database → ⋮ → **Import JSON** → [`src/data/seed.firebase.json`](src/data/seed.firebase.json).
 7. **Project settings → General → Your apps → Web app** → copy the SDK config values.
+
+### Hardening (recommended)
+- **Authentication → Settings → User actions → uncheck "Enable create (sign-up)".** Otherwise anyone
+  can create accounts with your public API key (harmless to data given the UID rule, but noise).
+- **Google Cloud Console → APIs & Services → Credentials → your Browser key → Application
+  restrictions: HTTP referrers** → `https://k3yzers0ze.github.io/*` (plus `http://localhost:5173/*` for dev).
+- Consider **App Check** (reCAPTCHA Enterprise) to block scripted abuse of your endpoints.
 
 ### Config via GitHub Secrets (2.4)
 Web config is injected at build, never committed. Values are **not secret** (they identify the
 project; the rules protect the data) — kept out of the repo only because Phase 2.4 asked for it.
 - **Local dev:** `cp .env.example .env` and fill the `VITE_FIREBASE_*` values.
-- **CI:** add repo **Secrets** (Settings → Secrets and variables → Actions → **Secrets**):
-  `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_DATABASE_URL`,
-  `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`. The deploy workflow passes them to the build.
+- **CI:** add a repo **Secret** named `FIREBASE` containing your `firebaseConfig` object (JSON or the
+  JS snippet from the console both work), **or** five secrets `VITE_FIREBASE_API_KEY`,
+  `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_DATABASE_URL`, `VITE_FIREBASE_PROJECT_ID`,
+  `VITE_FIREBASE_APP_ID`. The deploy workflow parses them into the build. The config must include
+  `databaseURL`, or Firebase stays disabled.
 - **Authorized domains:** Authentication → Settings → **Authorized domains** → add `k3yzers0ze.github.io`.
 
 ## Deploy to GitHub Pages

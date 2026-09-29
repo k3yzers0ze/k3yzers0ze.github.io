@@ -1,14 +1,17 @@
 // Admin auth state (Phase 3.2). Wraps firebase.js auth and caches the `isAdmin`
 // flag in localStorage so the UI can render the admin state instantly on refresh
 // without waiting for Firebase to re-hydrate. The cache is a UI convenience only —
-// all real authorization is enforced server-side by the database rules.
+// all real authorization is enforced server-side by the database rules (UID match).
 import { firebaseEnabled, onAuth, signInEmail, signOutUser } from './firebase.js';
 
+// Must match the UID in database.rules.json.
+export const ADMIN_UID = 'lEsVOWrpNQPh06Ii7hMqXgap63J2';
 export const ADMIN_EMAIL = 't.aymen404@proton.me';
 const KEY = 'gp_admin';
 
 const state = { user: null, isAdmin: false, ready: false };
 const listeners = new Set();
+let started = null;
 
 export function isAdmin() { return state.isAdmin; }
 export function currentUser() { return state.user; }
@@ -19,7 +22,7 @@ export function cachedIsAdmin() {
 
 // Instant, SDK-free admin hint from the localStorage cache. Used on every page
 // load so we DON'T pull the Firebase auth SDK for ordinary visitors. Real
-// verification happens later via initAuth() when the admin panel needs it.
+// verification happens via initAuth() when the admin panel opens.
 export function hydrateAdminFromCache() {
   state.isAdmin = cachedIsAdmin();
   return state.isAdmin;
@@ -39,18 +42,14 @@ function setAdmin(v, user) {
   listeners.forEach((cb) => cb({ ...state }));
 }
 
-export async function initAuth() {
-  if (!firebaseEnabled) return;
-  // optimistic paint from cache while Firebase re-hydrates
-  state.isAdmin = cachedIsAdmin();
-  try {
-    await onAuth((u) => {
-      const ok = !!(u && u.emailVerified && u.email === ADMIN_EMAIL);
-      setAdmin(ok, u);
-    });
-  } catch {
-    /* offline / SDK unavailable — keep cached optimistic value */
-  }
+// Idempotent: the auth SDK loads and subscribes once per page lifetime.
+export function initAuth() {
+  if (!firebaseEnabled) return Promise.resolve();
+  started ??= onAuth((u) => setAdmin(!!(u && u.uid === ADMIN_UID), u)).catch((e) => {
+    started = null;
+    throw e;
+  });
+  return started;
 }
 
 export async function adminSignIn(email, password) {

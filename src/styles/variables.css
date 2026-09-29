@@ -41,3 +41,4 @@ body.pg-projects  { --scene-key: #ffb04d; --scene-fill: #22d3ee; }
 body.pg-writeups  { --scene-key: #4ade80; --scene-fill: #22d3ee; }
 body.pg-writeup   { --scene-key: #4ade80; --scene-fill: #22d3ee; }
 body.pg-contact   { --scene-key: #ff2e88; --scene-fill: #a78bfa; }
+body.pg-admin     { --scene-key: #a78bfa; --scene-fill: #22d3ee; }

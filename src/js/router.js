@@ -2,10 +2,16 @@
 import config from '../data/config.json';
 import skills from '../data/skills.json';
 import platforms from '../data/platforms.json';
-import { writeups, getWriteup, getRenderedContent } from './writeups.js';
+import { writeups, loadWriteups, findWriteup, getRenderedContent } from './writeups.js';
 import { SkillGrid, PlatformGrid, CertGrid, ProjectGrid } from './components/CardGrid.js';
 import { Terminal } from './components/Terminal.js';
 import { esc, fmtDate } from './util.js';
+import { highlightWithin } from './highlight.js';
+import { renderAdmin } from './admin.js';
+
+// Incremented on every navigation; async routes bail out if the user has
+// moved on before their data arrived (prevents stale content rendering).
+let navSeq = 0;
 
 // View HTML partials, bundled at build time.
 const partials = import.meta.glob('../views/*.html', { query: '?raw', import: 'default', eager: true });
@@ -16,7 +22,9 @@ const app = () => document.getElementById('app');
 /* ---------------------------------------------------------------- helpers -- */
 function setMeta({ title, description, page }) {
   document.title = title ? `${title} · ${config.name}` : config.title;
-  document.body.className = `pg-${page || 'home'}`;
+  // Swap only the pg-* class; keep others (e.g. `no-fx` from perf.js).
+  [...document.body.classList].forEach((c) => c.startsWith('pg-') && document.body.classList.remove(c));
+  document.body.classList.add(`pg-${page || 'home'}`);
   const d = document.querySelector('meta[name="description"]');
   if (d && description) d.setAttribute('content', description);
   const ot = document.querySelector('meta[property="og:title"]');
@@ -170,7 +178,8 @@ const routes = {
     app().querySelector('#proj-grid').innerHTML = ProjectGrid(config.projects);
   },
 
-  writeups: () => {
+  writeups: async () => {
+    const seq = navSeq;
     setMeta({ title: 'Writeups & Research', description: 'Research and machine write-ups.', page: 'writeups' });
     app().innerHTML = view('writeups');
     const input = app().querySelector('#wu-search');
@@ -179,8 +188,12 @@ const routes = {
     const empty = app().querySelector('#wu-empty');
     const filters = app().querySelector('#wu-filters');
 
+    count.textContent = 'loading…';
+    const all = await loadWriteups();
+    if (seq !== navSeq) return;
+
     // category filter pills, derived from tags
-    const cats = ['all', ...Array.from(new Set(writeups.flatMap((w) => w.tags)))];
+    const cats = ['all', ...Array.from(new Set(all.flatMap((w) => w.tags)))];
     let activeTag = 'all';
     let query = '';
     filters.innerHTML = cats
@@ -200,7 +213,7 @@ const routes = {
     };
 
     const apply = () => {
-      let items = writeups;
+      let items = all;
       if (activeTag !== 'all') items = items.filter((w) => w.tags.includes(activeTag));
       if (query) {
         items = items.filter((w) =>
@@ -224,7 +237,9 @@ const routes = {
   },
 
   writeup: async (slug) => {
-    const w = getWriteup(slug);
+    const seq = navSeq;
+    const w = await findWriteup(slug);
+    if (seq !== navSeq) return;
     if (!w) return routes.notfound();
     setMeta({ title: w.title, description: w.summary, page: 'writeup' });
     app().innerHTML = view('writeup-detail');
@@ -246,16 +261,24 @@ const routes = {
     initReadbar();
     try {
       const html = await getRenderedContent(w);
+      if (seq !== navSeq) return;
       const bodyEl = app().querySelector('#wu-body');
       if (bodyEl) {
         bodyEl.innerHTML = html;
         buildTOC(bodyEl, app().querySelector('#wu-toc'));
-        initReadbar();
+        updateReadbar();
+        highlightWithin(bodyEl).catch(() => {});
       }
     } catch {
+      if (seq !== navSeq) return;
       const bodyEl = app().querySelector('#wu-body');
       if (bodyEl) bodyEl.innerHTML = '<p class="cm-note">Could not load this write-up.</p>';
     }
+  },
+
+  admin: () => {
+    setMeta({ title: 'Admin', description: 'Site administration.', page: 'admin' });
+    renderAdmin(app());
   },
 
   contact: () => {
@@ -343,30 +366,39 @@ function buildTOC(bodyEl, tocEl) {
 }
 
 /* -------------------------------------------------------------- readbar ---- */
+// Reading-progress bar: one element, one scroll listener for the page lifetime,
+// only active on write-up pages.
 let readbarEl = null;
+let readbarOn = false;
+function updateReadbar() {
+  if (!readbarEl) return;
+  if (!readbarOn) { readbarEl.style.width = '0'; return; }
+  const h = document.documentElement;
+  const max = h.scrollHeight - h.clientHeight;
+  readbarEl.style.width = max > 0 ? `${(h.scrollTop / max) * 100}%` : '0';
+}
 function initReadbar() {
   if (!readbarEl) {
     readbarEl = document.createElement('div');
     readbarEl.className = 'readbar';
     document.body.appendChild(readbarEl);
+    window.addEventListener('scroll', updateReadbar, { passive: true });
   }
-  const onScroll = () => {
-    const h = document.documentElement;
-    const max = h.scrollHeight - h.clientHeight;
-    readbarEl.style.width = max > 0 ? `${(h.scrollTop / max) * 100}%` : '0';
-  };
-  window.addEventListener('scroll', onScroll, { passive: true });
-  onScroll();
+  readbarOn = true;
+  updateReadbar();
 }
 function clearReadbar() {
-  if (readbarEl) readbarEl.style.width = '0';
+  readbarOn = false;
+  updateReadbar();
 }
 
 /* --------------------------------------------------------------- resolve --- */
 export function resolve() {
   const raw = location.hash.replace(/^#\/?/, '').replace(/\/$/, '');
   const parts = raw.split('/');
+  navSeq++;
   clearReadbar();
+  if (tocObserver) { tocObserver.disconnect(); tocObserver = null; }
 
   let page = 'home';
   if (!raw) routes.home();
@@ -381,7 +413,7 @@ export function resolve() {
   }
 
   setActiveNav(page === 'writeup' ? 'writeups' : page);
-  window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+  window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
 // Programmatic navigation helper.

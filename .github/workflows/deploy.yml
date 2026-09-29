@@ -37,6 +37,8 @@ jobs:
           VITE_FIREBASE_DATABASE_URL: ${{ secrets.VITE_FIREBASE_DATABASE_URL }}
           VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          # Fallback for configs copied before the Realtime Database existed (not secret).
+          FIREBASE_DATABASE_URL: ${{ vars.FIREBASE_DATABASE_URL }}
         run: |
           set -e
           put() { printf '%s=%s\n' "$1" "$2" >> "$GITHUB_ENV"; }
@@ -44,7 +46,7 @@ jobs:
             echo "Using individual VITE_FIREBASE_* secrets."
             put VITE_FIREBASE_API_KEY      "$VITE_FIREBASE_API_KEY"
             put VITE_FIREBASE_AUTH_DOMAIN  "$VITE_FIREBASE_AUTH_DOMAIN"
-            put VITE_FIREBASE_DATABASE_URL "$VITE_FIREBASE_DATABASE_URL"
+            put VITE_FIREBASE_DATABASE_URL "${VITE_FIREBASE_DATABASE_URL:-$FIREBASE_DATABASE_URL}"
             put VITE_FIREBASE_PROJECT_ID   "$VITE_FIREBASE_PROJECT_ID"
             put VITE_FIREBASE_APP_ID       "$VITE_FIREBASE_APP_ID"
           elif [ -n "$FIREBASE_JSON" ]; then
@@ -55,13 +57,17 @@ jobs:
             # single->double quotes, quote unquoted keys, drop trailing commas
             norm=$(printf '%s' "$norm" | sed -E "s/'/\"/g; s/([{,])[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*:/\1\"\2\":/g; s/,[[:space:]]*}/}/g")
             if printf '%s' "$norm" | jq empty 2>/dev/null; then
-              put VITE_FIREBASE_API_KEY      "$(printf '%s' "$norm" | jq -r '.apiKey // empty')"
-              put VITE_FIREBASE_AUTH_DOMAIN  "$(printf '%s' "$norm" | jq -r '.authDomain // empty')"
-              put VITE_FIREBASE_DATABASE_URL "$(printf '%s' "$norm" | jq -r '.databaseURL // empty')"
-              put VITE_FIREBASE_PROJECT_ID   "$(printf '%s' "$norm" | jq -r '.projectId // empty')"
-              put VITE_FIREBASE_APP_ID       "$(printf '%s' "$norm" | jq -r '.appId // empty')"
-              miss=$(printf '%s' "$norm" | jq -r '(["apiKey","authDomain","databaseURL","projectId","appId"] - (keys)) | join(", ")')
-              if [ -n "$miss" ]; then echo "::warning::FIREBASE config missing keys: $miss (Firebase stays disabled)"; else echo "Firebase config parsed OK."; fi
+              get() { printf '%s' "$norm" | jq -r ".$1 // empty"; }
+              apiKey=$(get apiKey); authDomain=$(get authDomain); projectId=$(get projectId); appId=$(get appId)
+              databaseURL=$(get databaseURL); [ -z "$databaseURL" ] && databaseURL="$FIREBASE_DATABASE_URL"
+              put VITE_FIREBASE_API_KEY      "$apiKey"
+              put VITE_FIREBASE_AUTH_DOMAIN  "$authDomain"
+              put VITE_FIREBASE_DATABASE_URL "$databaseURL"
+              put VITE_FIREBASE_PROJECT_ID   "$projectId"
+              put VITE_FIREBASE_APP_ID       "$appId"
+              miss=""
+              for k in apiKey authDomain databaseURL projectId appId; do [ -z "${!k}" ] && miss="$miss $k"; done
+              if [ -n "$miss" ]; then echo "::warning::Firebase config missing:$miss (Firebase stays disabled)"; else echo "Firebase config complete."; fi
             else
               echo "::warning::Could not parse FIREBASE secret; building WITHOUT Firebase. Set it to your firebaseConfig JSON object."
             fi

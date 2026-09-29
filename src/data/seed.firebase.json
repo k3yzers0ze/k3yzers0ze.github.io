@@ -1,0 +1,38 @@
+{
+  "site": {
+    "hero": {
+      "name": "Tibtani Ahmed Aymen",
+      "role": "Offensive Security Student",
+      "header": "I'm an offensive security Student based in Rabat, Morocco. The job is easy to describe and hard to do: get in the way a real attacker would, prove what it costs, then hand over the exact path so it can be closed for good.",
+      "location": "Rabat, Morocco"
+    },
+    "contact": {
+      "email": "t.aymen404@proton.me",
+      "available": true
+    }
+  },
+
+  "posts": {
+    "mttdlrt0wmulv1": {
+      "title": "Kerberoasting an Attack Path to Domain Admin in a Two-Domain Forest",
+      "date": "2026-09-01",
+      "excerpt": "A lab write-up walking a defender through how a weak service-account password becomes a full-domain compromise — and exactly which controls and detections break the chain. Mapped to MITRE ATT&CK.",
+      "tags": ["Active Directory", "Kerberoasting", "MITRE ATT&CK", "BloodHound", "Red Team"],
+      "mitre": ["T1558.003", "T1087.002", "T1110.002", "T1003.006"],
+      "platform": "Home lab",
+      "difficulty": "Medium",
+      "published": true
+    }
+  },
+
+  "postContent": {
+    "mttdlrt0wmulv1": "See src/data/writeups/mttdlrt0wmulv1.md — paste the Markdown body here when you move content into the database."
+  },
+
+  "stats": {
+    "total": 0,
+    "by_day": {},
+    "by_week": {},
+    "by_month": {}
+  }
+}

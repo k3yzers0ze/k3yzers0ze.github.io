@@ -55,30 +55,45 @@ public/assets/             # profile.svg, certs/*.svg, icons/*.svg, og-default.p
   Markdown body…
   ```
 
-## Firebase (comments)
-Comments stay **disabled** (a friendly notice shows) until you fill real values — the site builds/deploys fine either way.
+## Firebase backend (Phase 2)
 
-1. Create a Firebase project → **Realtime Database** → create a database.
-2. **Authentication** → enable **Anonymous** and **Google** providers.
-3. Copy your web-app config into the `firebase` block of `src/data/config.json` (these values are public and safe to commit — security is enforced by DB rules).
-4. Realtime Database → **Rules**:
-   ```json
-   {
-     "rules": {
-       "comments": {
-         "$slug": {
-           ".read": true,
-           "$id": {
-             ".write": "auth != null && !data.exists()",
-             ".validate": "newData.hasChildren(['body','name','uid','ts']) && newData.child('body').isString() && newData.child('body').val().length <= 1000 && newData.child('uid').val() === auth.uid"
-           }
-         }
-       },
-       "writeups": { ".read": true, ".write": "auth != null" }
-     }
-   }
-   ```
-5. Authentication → **Settings → Authorized domains**: add your Pages domain (e.g. `username.github.io`).
+Model: **admin-only writes, public reads.** Only the admin account
+(`t.aymen404@proton.me`) can write; everyone else can read published data. The app
+runs fine with Firebase **unconfigured** (`firebaseEnabled` stays false).
+
+### Data model (`database.rules.json`, seed in `src/data/seed.firebase.json`)
+| Path | Read | Write | Purpose |
+| --- | --- | --- | --- |
+| `site/` | public | admin | hero text, contact, global settings |
+| `posts/<slug>` | public | admin | write-up metadata (title, date, tags, excerpt, `published`) — light for list queries |
+| `postContent/<slug>` | public | admin | the Markdown/HTML body, kept separate from metadata |
+| `stats/` | public | admin | aggregated views (`total`, `by_day/week/month`) |
+| `visitors/` | admin only | admin | raw anonymized logs (kept private) |
+
+> **Security note (analytics):** with admin-only writes, the site can't self-record
+> page views from the browser (that would need public writes = spoofable/floodable, or a
+> server we don't have on the free plan). For real analytics use a privacy-friendly
+> external tool (Plausible / GoatCounter / Cloudflare Web Analytics) and mirror totals into
+> `stats/` from your admin, or keep `stats/` admin-maintained. Ask and I'll wire one in.
+
+### Console setup (2.1 / 2.4 — your account)
+1. **Firebase Console → Add project.**
+2. **Build → Realtime Database → Create database** → region **`europe-west1`** → start in **locked mode**.
+3. **Build → Authentication → Sign-in method → enable Email/Password only.**
+4. **Authentication → Users → Add user** → your admin email `t.aymen404@proton.me` + a strong password.
+   (Email/Password users are auto `email_verified: true`, which the rules require.)
+5. **Realtime Database → Rules** → paste the contents of [`database.rules.json`](database.rules.json) → **Publish**.
+6. **(Optional) Import seed:** Realtime Database → ⋮ → **Import JSON** → [`src/data/seed.firebase.json`](src/data/seed.firebase.json).
+7. **Project settings → General → Your apps → Web app** → copy the SDK config values.
+
+### Config via GitHub Secrets (2.4)
+Web config is injected at build, never committed. Values are **not secret** (they identify the
+project; the rules protect the data) — kept out of the repo only because Phase 2.4 asked for it.
+- **Local dev:** `cp .env.example .env` and fill the `VITE_FIREBASE_*` values.
+- **CI:** add repo **Secrets** (Settings → Secrets and variables → Actions → **Secrets**):
+  `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_DATABASE_URL`,
+  `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`. The deploy workflow passes them to the build.
+- **Authorized domains:** Authentication → Settings → **Authorized domains** → add `k3yzers0ze.github.io`.
 
 ## Deploy to GitHub Pages
 1. Push to GitHub.

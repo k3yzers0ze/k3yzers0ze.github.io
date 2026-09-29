@@ -80,12 +80,5 @@
       "Security consulting and advisory",
       "Full-time roles"
     ]
-  },
-  "firebase": {
-    "apiKey": "TODO_API_KEY",
-    "authDomain": "TODO_PROJECT.firebaseapp.com",
-    "databaseURL": "https://TODO_PROJECT-default-rtdb.firebaseio.com",
-    "projectId": "TODO_PROJECT",
-    "appId": "TODO_APP_ID"
   }
 }

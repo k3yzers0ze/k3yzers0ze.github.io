@@ -6,7 +6,6 @@ import { writeups, getWriteup } from './writeups.js';
 import { SkillGrid, PlatformGrid, CertGrid, ProjectGrid } from './components/CardGrid.js';
 import { Terminal } from './components/Terminal.js';
 import { esc, fmtDate } from './util.js';
-import { renderComments } from './comments.js';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 
@@ -226,7 +225,6 @@ const routes = {
       ${w.tags.length ? `<div class="tags" style="margin-top:.8rem">${w.tags.map((t) => `<span class="chip">${esc(t)}</span>`).join('')}</div>` : ''}
       <div class="article-body">${html}</div>`;
 
-    renderComments(app().querySelector('#comments'), w.slug);
     initReadbar();
   },
 

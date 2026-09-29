@@ -1,0 +1,45 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "site": {
+      ".read": true,
+      ".write": "auth != null && auth.token.email == 't.aymen404@proton.me' && auth.token.email_verified == true",
+      "hero": { ".validate": "newData.hasChildren()" },
+      "contact": { ".validate": "newData.hasChildren()" }
+    },
+
+    "posts": {
+      ".read": true,
+      ".write": "auth != null && auth.token.email == 't.aymen404@proton.me' && auth.token.email_verified == true",
+      "$slug": {
+        ".validate": "newData.hasChildren(['title','date','published'])",
+        "title":     { ".validate": "newData.isString() && newData.val().length <= 200" },
+        "date":      { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "excerpt":   { ".validate": "newData.isString() && newData.val().length <= 500" },
+        "tags":      { ".validate": "newData.hasChildren() || newData.isString()" },
+        "published": { ".validate": "newData.isBoolean()" },
+        "$other":    { ".validate": true }
+      }
+    },
+
+    "postContent": {
+      ".read": true,
+      ".write": "auth != null && auth.token.email == 't.aymen404@proton.me' && auth.token.email_verified == true",
+      "$slug": {
+        ".validate": "newData.isString() && newData.val().length <= 200000"
+      }
+    },
+
+    "stats": {
+      ".read": true,
+      ".write": "auth != null && auth.token.email == 't.aymen404@proton.me' && auth.token.email_verified == true"
+    },
+
+    "visitors": {
+      ".read": "auth != null && auth.token.email == 't.aymen404@proton.me'",
+      ".write": "auth != null && auth.token.email == 't.aymen404@proton.me' && auth.token.email_verified == true"
+    }
+  }
+}
